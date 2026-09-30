@@ -2,15 +2,61 @@
 
 import { useMemo, useState } from 'react'
 import { QueryClient, QueryClientProvider } from 'react-query'
-import { createTRPCReact } from '@trpc/react'
+import { createReactQueryHooks } from '@trpc/react'
 import { httpBatchLink } from '@trpc/client/links/httpBatchLink'
 import superjson from 'superjson'
 import type { AppRouter } from '@/server/routers/_app'
 
-// Canonical tRPC v9 React client: typed, namespaced hooks.
-//   trpc.auth.register.useMutation({ ... })
-//   trpc.circle.listMembers.useQuery(input, { enabled })
-export const trpc = createTRPCReact<AppRouter>()
+// tRPC v9 React client: create base hooks, then wrap with proxy for namespaced access
+const baseTrpc = createReactQueryHooks<AppRouter>()
+
+// Cache for procedure hooks to avoid creating new objects on every access
+const hookCache = new Map<string, any>()
+
+// Cache for router proxies to avoid creating new proxies on every access
+const routerCache = new Map<string, any>()
+
+function getCachedHook(path: string) {
+  if (!hookCache.has(path)) {
+    hookCache.set(path, {
+      useQuery: (input?: any, options?: any) => {
+        return baseTrpc.useQuery([path, input], options)
+      },
+      useMutation: (options?: any) => {
+        return baseTrpc.useMutation(path, options)
+      },
+    })
+  }
+  return hookCache.get(path)
+}
+
+function getCachedRouter(routerName: string) {
+  if (!routerCache.has(routerName)) {
+    routerCache.set(routerName, new Proxy({}, {
+      get(_, procedureName: string) {
+        return getCachedHook(routerName + '.' + procedureName)
+      },
+    }))
+  }
+  return routerCache.get(routerName)
+}
+
+// Export trpc object that supports namespaced access
+// e.g., trpc.auth.register.useMutation()
+export const trpc = new Proxy({}, {
+  get(_, name: string) {
+    if (name === 'useContext') {
+      return () => baseTrpc.useContext()
+    }
+    if (name === 'useQueryClient') {
+      return () => {
+        const trpcClient = baseTrpc.useContext()
+        return trpcClient.queryClient
+      }
+    }
+    return getCachedRouter(name)
+  },
+})
 
 function getBaseUrl() {
   if (typeof window !== 'undefined') return window.location.origin
@@ -29,16 +75,22 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
 
   const trpcClient = useMemo(
     () =>
-      trpc.createClient({
-        transformer: superjson,
-        links: [httpBatchLink({ url: getBaseUrl() + '/api/trpc' })],
+      baseTrpc.createClient({
+        links: [
+          httpBatchLink({
+            url: getBaseUrl() + '/api/trpc',
+            transformer: superjson,
+          }),
+        ],
       }),
     [],
   )
 
   return (
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    </trpc.Provider>
+    <QueryClientProvider client={queryClient}>
+      <baseTrpc.Provider client={trpcClient} queryClient={queryClient}>
+        {children}
+      </baseTrpc.Provider>
+    </QueryClientProvider>
   )
 }

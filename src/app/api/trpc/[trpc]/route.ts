@@ -140,7 +140,7 @@ async function handleRequest(req: NextRequest, type: 'query' | 'mutation') {
         }
       }
       
-      return NextResponse.json({ json: results })
+      return NextResponse.json(results)
     }
     
     // Single request
@@ -159,28 +159,22 @@ async function handleRequest(req: NextRequest, type: 'query' | 'mutation') {
     
     const serialized = superjson.serialize(result)
     return NextResponse.json({
-      json: {
-        result: {
-          type: 'json',
-          data: serialized,
-        },
+      result: {
+        type: 'json',
+        data: serialized,
       },
     })
   } catch (error) {
     if (error instanceof TRPCError) {
       return NextResponse.json({
-        json: {
-          error: { message: error.message, code: error.code },
-        },
+        error: { message: error.message, code: error.code },
       })
     }
     
     console.error('Unhandled error:', error)
     
     return NextResponse.json({
-      json: {
-        error: { message: 'Internal Server Error', code: 'INTERNAL_SERVER_ERROR' },
-      },
+      error: { message: 'Internal Server Error', code: 'INTERNAL_SERVER_ERROR' },
     })
   }
 }
