@@ -1,0 +1,23 @@
+# Normalize line endings: store LF in the repo, check out platform-appropriate endings.
+* text=auto
+
+# Explicitly mark binary assets so Git never tries to treat them as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+*.zip binary
+*.gz binary
+
+# Windows scripts keep CRLF so they run reliably from the shell.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.vbs text eol=crlf

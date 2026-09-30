@@ -1,0 +1,44 @@
+# Dependencies & caches — reinstalled by the builder stage
+node_modules
+.npm-cache
+
+# Build output — rebuilt by the builder stage
+.next
+out
+*.tsbuildinfo
+
+# Version control & editor state
+.git
+.gitignore
+.vscode
+.idea
+
+# Secrets — must never be baked into the image
+.env
+.env.*
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Docs & local-only tooling
+README.md
+AGENTS.md
+DEVELOPER_GUIDE.md
+DEVELOPMENT_PLAN.md
+PLAN.md
+USER_GUIDE.md
+项目基准
+
+# Local launcher / one-off debug scripts
+setup.bat
+setup.sh
+launch-dev.vbs
+run-dev.bat
+check-server.mjs
+test-*.mjs
+test-*.cjs
+test-*.js
+word-check-insrcapp*.tsx

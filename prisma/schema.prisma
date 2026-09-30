@@ -1,0 +1,502 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== Enums =====
+
+enum UserStatus {
+  ACTIVE
+  DEACTIVATED
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum CircleType {
+  PUBLIC
+  PRIVATE
+  INVITE_ONLY
+}
+
+enum CheckinStatus {
+  DRAFT
+  PUBLISHED
+  WITHDRAWN
+}
+
+enum Mastery {
+  NEW        // 新词
+  LEARNING   // 学习中
+  KNOWN      // 认识
+  MASTERED   // 掌握
+  REVIEWING  // 复习中
+}
+
+
+enum VocabLevel {
+  CET4
+  CET6
+  COMBINED
+  CUSTOM
+}
+
+enum NotificationType {
+  LIKE
+  COMMENT
+  INVITE
+  JOIN
+  REMOVED
+  PASSWORD_RESET
+  ADMIN_ACTION
+}
+
+// ===== User =====
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  nickname     String
+  avatarUrl    String?
+  status       UserStatus @default(ACTIVE)
+  phone        String?
+  twoFactorEnabled Boolean @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+
+  // Relations
+  circlesOwned      Circle[]                 @relation("CircleOwner")
+  memberships       CircleMember[]
+  checkins          Checkin[]
+  drafts            CheckinDraft[]
+  comments          Comment[]
+  likes             Like[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]               @relation("AuditActor")
+  auditTargets      AuditLog[]               @relation("AuditTarget")
+  notificationPrefs NotificationPreference[]
+  exports           Export[]
+  wordProgresses    WordProgress[]
+  messages          Message[]
+  messageReads      MessageRead[]
+
+  @@index([email])
+  @@index([status])
+}
+
+// ===== Circle =====
+
+model Circle {
+  id             String     @id @default(cuid())
+  name           String
+  description    String?
+  timezone       String     @default("Asia/Shanghai")
+  studyDirection String?
+  examType       String?
+  circleType     CircleType @default(PRIVATE)
+  maxMembers     Int        @default(50)
+  allowMemberInvite Boolean @default(true)
+  allowLeaderboard  Boolean @default(true)
+  ownerId        String
+  owner          User       @relation("CircleOwner", fields: [ownerId], references: [id])
+  createdAt      DateTime   @default(now())
+
+  members                CircleMember[]
+  checkins               Checkin[]
+  drafts                 CheckinDraft[]
+  snapshots              WeeklySnapshot[]
+  inviteCodes            InviteCode[]
+  exports                Export[]
+  messages               Message[]
+  discussionSettings     CircleDiscussionSettings?
+  messageReads           MessageRead[]
+
+  @@index([ownerId])
+}
+
+// ===== CircleMember =====
+
+model CircleMember {
+  id       String    @id @default(cuid())
+  circleId String
+  userId   String
+  role     Role      @default(MEMBER)
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+  mutedAt  DateTime?
+  lastActiveAt DateTime?
+
+  circle Circle @relation(fields: [circleId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([circleId, userId])
+  @@index([userId])
+}
+
+// ===== InviteCode =====
+
+model InviteCode {
+  id        String    @id @default(cuid())
+  circleId  String
+  code      String    @unique
+  maxUses   Int?
+  usedCount Int       @default(0)
+  expiresAt DateTime?
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  circle Circle @relation(fields: [circleId], references: [id])
+
+  @@index([circleId])
+  @@index([code])
+}
+
+// ===== Checkin =====
+
+model Checkin {
+  id             String        @id @default(cuid())
+  circleId       String
+  userId         String
+  vocabVersionId String
+  wordCount      Int
+  minutes        Int
+  note           String?
+  date           DateTime      @db.Date
+  status         CheckinStatus @default(PUBLISHED)
+  withdrawnAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  circle       Circle        @relation(fields: [circleId], references: [id])
+  user         User          @relation(fields: [userId], references: [id])
+  vocabVersion VocabVersion  @relation(fields: [vocabVersionId], references: [id])
+  comments     Comment[]
+  likes        Like[]
+  edits        CheckinEdit[]
+  messages     Message[]
+
+  @@unique([circleId, userId, date, status])
+  @@index([circleId, date])
+  @@index([userId, date])
+  @@index([status])
+}
+
+// ===== CheckinEdit =====
+
+model CheckinEdit {
+  id        String   @id @default(cuid())
+  checkinId String
+  userId    String
+  field     String
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime @default(now())
+
+  checkin Checkin @relation(fields: [checkinId], references: [id])
+
+  @@index([checkinId])
+}
+
+// ===== CheckinDraft =====
+
+model CheckinDraft {
+  id             String   @id @default(cuid())
+  circleId       String
+  userId         String
+  vocabVersionId String?
+  wordCount      Int?
+  minutes        Int?
+  note           String?
+  updatedAt      DateTime @updatedAt
+
+  circle       Circle        @relation(fields: [circleId], references: [id])
+  user         User          @relation(fields: [userId], references: [id])
+  vocabVersion VocabVersion? @relation(fields: [vocabVersionId], references: [id])
+
+  @@unique([circleId, userId])
+}
+
+// ===== Like =====
+
+model Like {
+  id        String   @id @default(cuid())
+  checkinId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  checkin Checkin @relation(fields: [checkinId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([checkinId, userId])
+  @@index([checkinId])
+}
+
+// ===== Comment =====
+
+model Comment {
+  id        String    @id @default(cuid())
+  checkinId String
+  userId    String
+  content   String    @db.VarChar(500)
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  checkin Checkin @relation(fields: [checkinId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([checkinId])
+  @@index([userId])
+}
+
+// ===== Notification =====
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+}
+
+// ===== NotificationPreference =====
+
+model NotificationPreference {
+  id      String           @id @default(cuid())
+  userId  String
+  type    NotificationType
+  enabled Boolean          @default(true)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, type])
+}
+
+// ===== VocabVersion =====
+
+model VocabVersion {
+  id         String     @id @default(cuid())
+  name       String
+  level      VocabLevel
+  version    String
+  source     String
+  importDate DateTime
+  isActive   Boolean    @default(true)
+  entryCount Int
+  createdAt  DateTime   @default(now())
+
+  entries  VocabEntry[]
+  checkins Checkin[]
+  drafts   CheckinDraft[]
+
+  @@index([level])
+  @@index([isActive])
+}
+
+// ===== VocabEntry =====
+
+model VocabEntry {
+  id           String     @id @default(cuid())
+  versionId    String
+  term         String
+  phonetic     String?    // IPA音标
+  definition   String?    // 中文释义
+  example      String?    // 英文例句
+  exampleCn    String?    // 例句中文翻译
+  wordType     String?    // 词性 n./v./adj./adv.等
+  audioUrl     String?    // 发音音频URL
+  englishDefinition String? // 英文释义
+  collocations Json?      // 常用搭配
+  derivedWords Json?      // 派生词
+  synonyms     Json?      // 同义词
+  antonyms     Json?      // 反义词
+  commonErrors Json?      // 常见错误
+  confusionWords Json?    // 易混词
+  level        VocabLevel
+  isCet6       Boolean    @default(false)
+  frequency    Int?       // 词频(1-100)
+  orderIndex   Int
+  extra        Json?
+
+  version  VocabVersion @relation(fields: [versionId], references: [id])
+  progress WordProgress[]
+  messages Message[]
+
+  @@unique([versionId, term])
+  @@index([term])
+  @@index([level])
+  @@index([frequency])
+}
+
+// ===== AuditLog =====
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  eventType   String
+  actorId     String
+  targetId    String?
+  targetTable String?
+  before      Json?
+  after       Json?
+  reason      String?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  actor  User? @relation("AuditActor", fields: [actorId], references: [id])
+  target User? @relation("AuditTarget", fields: [targetId], references: [id])
+
+  @@index([eventType])
+  @@index([actorId])
+  @@index([targetId])
+  @@index([createdAt])
+}
+
+model WordProgress {
+  id             String    @id @default(cuid())
+  userId         String
+  entryId        String
+  mastery        Mastery   @default(NEW)
+  reviewCount    Int       @default(0)
+  nextReviewAt   DateTime?
+  easeFactor     Float     @default(2.5)
+  interval       Int       @default(0)
+  lapses         Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user   User        @relation(fields: [userId], references: [id])
+  entry  VocabEntry  @relation(fields: [entryId], references: [id])
+
+  @@unique([userId, entryId])
+  @@index([userId, nextReviewAt])
+  @@index([userId, mastery])
+}
+
+
+// ===== WeeklySnapshot =====
+
+model WeeklySnapshot {
+  id          String   @id @default(cuid())
+  circleId    String
+  weekStart   DateTime @db.Date
+  weekEnd     DateTime @db.Date
+  generatedAt DateTime
+  data        Json
+
+  circle Circle @relation(fields: [circleId], references: [id])
+
+  @@unique([circleId, weekStart])
+  @@index([circleId])
+}
+
+// ===== Export =====
+
+model Export {
+  id        String   @id @default(cuid())
+  circleId  String?
+  userId    String
+  format    String
+  content   Json
+  createdAt DateTime @default(now())
+
+  circle Circle? @relation(fields: [circleId], references: [id])
+  user   User    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([circleId])
+}
+
+// ===== Message =====
+
+enum MessageType {
+  TEXT        // 文字消息
+  IMAGE       // 图片消息
+  CHECKIN     // 关联打卡
+  WORD        // 关联单词
+  SYSTEM      // 系统通知
+  MILESTONE   // 学习里程碑
+  TIP         // 学习提醒
+  REPLY       // 回复消息
+}
+
+model Message {
+  id          String      @id @default(cuid())
+  circleId    String
+  userId      String
+  type        MessageType @default(TEXT)
+  content     String?     @db.VarChar(1000)
+  imageUrl    String?
+  checkinId   String?
+  entryId     String?
+  parentId    String?     // 回复的消息ID
+  isDeleted   Boolean     @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  circle Circle    @relation(fields: [circleId], references: [id])
+  user User        @relation(fields: [userId], references: [id])
+  checkin Checkin? @relation(fields: [checkinId], references: [id])
+  entry VocabEntry? @relation(fields: [entryId], references: [id])
+  parent Message?  @relation("MessageReply", fields: [parentId], references: [id])
+  replies Message[] @relation("MessageReply")
+
+  @@index([circleId, createdAt])
+  @@index([userId, createdAt])
+  @@index([circleId, type])
+  @@index([parentId])
+}
+
+// ===== MessageRead =====
+
+model MessageRead {
+  id          String   @id @default(cuid())
+  circleId    String
+  userId      String
+  lastReadId  String?
+  lastReadAt  DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  circle Circle @relation(fields: [circleId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([circleId, userId])
+  @@index([circleId])
+  @@index([userId])
+}
+
+// ===== CircleDiscussionSettings =====
+
+model CircleDiscussionSettings {
+  id                   String  @id @default(cuid())
+  circleId             String  @unique
+  enabled              Boolean @default(true)
+  allowCheckinRef      Boolean @default(true)
+  allowWordRef         Boolean @default(true)
+  allowImages          Boolean @default(true)
+  allowGuestView       Boolean @default(false)
+  archiveAtMidnight    Boolean @default(false)
+  sensitiveWordFilter  Boolean @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  circle Circle @relation(fields: [circleId], references: [id])
+
+  @@index([circleId])
+}
