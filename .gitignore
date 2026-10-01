@@ -55,3 +55,18 @@ pnpm-debug.log*
 
 # local launcher artifacts
 server.log
+
+# ACL diagnostic reports (temporary)
+.acl-report/
+
+# backup and temporary files
+*.bak
+*.tmp
+
+# local test scripts (ad-hoc)
+test-*.mjs
+test-*.cjs
+test-*.js
+check-server.mjs
+launch-dev.vbs
+run-dev.bat
