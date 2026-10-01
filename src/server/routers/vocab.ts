@@ -1,13 +1,13 @@
 import { z } from 'zod'
 import { TRPCError } from '@trpc/server'
-import { router } from '../trpc'
+import { router, publicProcedure } from '../trpc'
 
-const listVersionsProcedure = {
-  input: z.object({
+const listVersionsProcedure = publicProcedure
+  .input(z.object({
     level: z.enum(['CET4', 'CET6', 'COMBINED', 'CUSTOM']).optional(),
     isActive: z.boolean().default(true),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .query(async ({ input, ctx }) => {
     if (!ctx.user) {
       throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
     }
@@ -24,16 +24,15 @@ const listVersionsProcedure = {
     })
 
     return versions
-  }
-}
+  })
 
-const getEntriesProcedure = {
-  input: z.object({
+const getEntriesProcedure = publicProcedure
+  .input(z.object({
     versionId: z.string(),
     skip: z.number().default(0),
     take: z.number().default(50),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .query(async ({ input, ctx }) => {
     if (!ctx.user) {
       throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
     }
@@ -51,17 +50,16 @@ const getEntriesProcedure = {
     ])
 
     return { entries, total }
-  }
-}
+  })
 
-const searchProcedure = {
-  input: z.object({
+const searchProcedure = publicProcedure
+  .input(z.object({
     term: z.string(),
     level: z.enum(['CET4', 'CET6', 'COMBINED', 'CUSTOM']).optional(),
     skip: z.number().default(0),
     take: z.number().default(50),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .query(async ({ input, ctx }) => {
     if (!ctx.user) {
       throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
     }
@@ -69,8 +67,8 @@ const searchProcedure = {
     const [entries, total] = await Promise.all([
       ctx.prisma.vocabEntry.findMany({
         where: {
-          term: input.term ? { startsWith: input.term.toLowerCase(), mode: 'insensitive' } : undefined,
-          ...(input.level && { level: input.level }),
+          term: input.term ? { startsWith: input.term.toLowerCase(), mode: 'insensitive' as const } : undefined,
+          ...(input.level && { version: { level: input.level } }),
         },
         orderBy: [{ frequency: 'desc' }, { term: 'asc' }],
         skip: input.skip,
@@ -78,17 +76,17 @@ const searchProcedure = {
       }),
       ctx.prisma.vocabEntry.count({
         where: {
-          term: input.term ? { startsWith: input.term.toLowerCase(), mode: 'insensitive' } : undefined,
-          ...(input.level && { level: input.level }),
+          term: input.term ? { startsWith: input.term.toLowerCase(), mode: 'insensitive' as const } : undefined,
+          ...(input.level && { version: { level: input.level } }),
         },
       }),
     ])
 
     return { entries, total }
-  }
-}
+  })
 
-export const vocabRouter = router()
-  .query('listVersions', listVersionsProcedure)
-  .query('getEntries', getEntriesProcedure)
-  .query('search', searchProcedure)
+export const vocabRouter = router({
+  listVersions: listVersionsProcedure,
+  getEntries: getEntriesProcedure,
+  search: searchProcedure,
+})

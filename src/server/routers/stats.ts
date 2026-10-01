@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { TRPCError } from '@trpc/server'
-import { router } from '../trpc'
+import { router, publicProcedure } from '../trpc'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays, isAfter, isBefore } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
 
@@ -42,9 +42,9 @@ const assertCircleMember = async (ctx: any, circleId: string) => {
   return member
 }
 
-const profileProcedure = {
-  input: z.object({ circleId: z.string() }),
-  resolve: async ({ input, ctx }: any) => {
+const profileProcedure = publicProcedure
+  .input(z.object({ circleId: z.string() }))
+  .query(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     await assertCircleMember(ctx, input.circleId)
@@ -118,12 +118,11 @@ const profileProcedure = {
       longestStreak,
       weekCheckins,
     }
-  },
-}
+  })
 
-const circleProcedure = {
-  input: z.object({ circleId: z.string() }),
-  resolve: async ({ input, ctx }: any) => {
+const circleProcedure = publicProcedure
+  .input(z.object({ circleId: z.string() }))
+  .query(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     await assertCircleMember(ctx, input.circleId)
@@ -202,16 +201,15 @@ const circleProcedure = {
       },
       members: memberStats,
     }
-  },
-}
+  })
 
-const calendarProcedure = {
-  input: z.object({
+const calendarProcedure = publicProcedure
+  .input(z.object({
     circleId: z.string(),
     year: z.number(),
     month: z.number().min(1).max(12),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .query(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     await assertCircleMember(ctx, input.circleId)
@@ -238,10 +236,10 @@ const calendarProcedure = {
         date: format(c.date, 'yyyy-MM-dd'),
       })),
     }
-  },
-}
+  })
 
-export const statsRouter = router()
-  .query('profile', profileProcedure)
-  .query('circle', circleProcedure)
-  .query('calendar', calendarProcedure)
+export const statsRouter = router({
+  profile : profileProcedure,
+  circle : circleProcedure,
+  calendar : calendarProcedure
+})

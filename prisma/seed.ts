@@ -28,11 +28,11 @@ interface VocabEntryData {
   commonErrors: string[]
   audioUrl: string | null
   frequency: number
-  level: string
+  level: VocabLevel
   orderIndex: number
 }
 
-function processKyleBingWords(data: KyleBingEntry[], level: string): VocabEntryData[] {
+function processKyleBingWords(data: KyleBingEntry[], level: VocabLevel): VocabEntryData[] {
   const wordMap = new Map<string, VocabEntryData>()
   
   data.forEach((entry, index) => {
@@ -88,8 +88,8 @@ async function main() {
   console.log('CET6 entries:', cet6Data.length)
   
   // Process KyleBing words
-  const cet4Words = processKyleBingWords(cet4Data, 'CET4')
-  const cet6Words = processKyleBingWords(cet6Data, 'CET6')
+  const cet4Words = processKyleBingWords(cet4Data, VocabLevel.CET4)
+  const cet6Words = processKyleBingWords(cet6Data, VocabLevel.CET6)
   
   // Create combined list (KyleBing CET4 + CET6)
   const combinedMap = new Map<string, VocabEntryData>()

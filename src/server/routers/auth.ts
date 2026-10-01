@@ -1,15 +1,15 @@
 import { z } from 'zod'
 import { TRPCError } from '@trpc/server'
-import { router } from '../trpc'
+import { router, publicProcedure } from '../trpc'
 import argon2 from 'argon2'
 
-const registerProcedure = {
-  input: z.object({
+const registerProcedure = publicProcedure
+  .input(z.object({
     email: z.string().email('请输入有效的邮箱地址'),
     nickname: z.string().min(1, '请输入昵称').max(20, '昵称不能超过20个字符'),
     password: z.string().min(10, '密码至少10个字符'),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     const existing = await ctx.prisma.user.findUnique({
       where: { email: input.email },
     })
@@ -33,11 +33,10 @@ const registerProcedure = {
       nickname: user.nickname,
       avatarUrl: user.avatarUrl,
     }
-  }
-}
+  })
 
-const meProcedure = {
-  resolve: async ({ ctx }: any) => {
+const meProcedure = publicProcedure
+  .query(async ({ ctx }) => {
     if (!ctx.user) {
       throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
     }
@@ -47,15 +46,14 @@ const meProcedure = {
       nickname: ctx.user.nickname,
       avatarUrl: ctx.user.avatarUrl,
     }
-  }
-}
+  })
 
-const updateProfileProcedure = {
-  input: z.object({
+const updateProfileProcedure = publicProcedure
+  .input(z.object({
     nickname: z.string().min(1).max(20).optional(),
     avatarUrl: z.string().url().optional(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) {
       throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
     }
@@ -73,11 +71,10 @@ const updateProfileProcedure = {
       nickname: updatedUser.nickname,
       avatarUrl: updatedUser.avatarUrl,
     }
-  }
-}
+  })
 
-const deactivateProcedure = {
-  resolve: async ({ ctx }: any) => {
+const deactivateProcedure = publicProcedure
+  .mutation(async ({ ctx }) => {
     if (!ctx.user) {
       throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
     }
@@ -111,15 +108,14 @@ const deactivateProcedure = {
     })
 
     return { success: true }
-  }
-}
+  })
 
-const changePasswordProcedure = {
-  input: z.object({
+const changePasswordProcedure = publicProcedure
+  .input(z.object({
     oldPassword: z.string().min(1, '请输入当前密码'),
     newPassword: z.string().min(10, '新密码至少10个字符').max(100, '密码不能超过100个字符'),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) {
       throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
     }
@@ -129,13 +125,11 @@ const changePasswordProcedure = {
       throw new TRPCError({ code: 'NOT_FOUND', message: '用户不存在' })
     }
 
-    // Verify old password
     const isPasswordValid = await argon2.verify(user.passwordHash, input.oldPassword)
     if (!isPasswordValid) {
       throw new TRPCError({ code: 'FORBIDDEN', message: '当前密码不正确' })
     }
 
-    // Hash new password
     const passwordHash = await argon2.hash(input.newPassword)
 
     await ctx.prisma.$transaction([
@@ -155,16 +149,15 @@ const changePasswordProcedure = {
     ])
 
     return { success: true }
-  }
-}
+  })
 
-const updateProfileExtendedProcedure = {
-  input: z.object({
+const updateProfileExtendedProcedure = publicProcedure
+  .input(z.object({
     nickname: z.string().min(1).max(20).optional(),
     avatarUrl: z.string().url().optional(),
     phone: z.string().optional(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) {
       throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
     }
@@ -183,13 +176,13 @@ const updateProfileExtendedProcedure = {
       nickname: updatedUser.nickname,
       avatarUrl: updatedUser.avatarUrl,
     }
-  }
-}
+  })
 
-export const authRouter = router()
-  .mutation('register', registerProcedure)
-  .query('me', meProcedure)
-  .mutation('updateProfile', updateProfileProcedure)
-  .mutation('updateProfileExtended', updateProfileExtendedProcedure)
-  .mutation('changePassword', changePasswordProcedure)
-  .mutation('deactivate', deactivateProcedure)
+export const authRouter = router({
+  register: registerProcedure,
+  me: meProcedure,
+  updateProfile: updateProfileProcedure,
+  updateProfileExtended: updateProfileExtendedProcedure,
+  changePassword: changePasswordProcedure,
+  deactivate: deactivateProcedure,
+})

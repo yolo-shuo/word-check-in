@@ -30,7 +30,7 @@ export default function SettingsPage() {
     onError: (error) => toast.error(error.message)
   })
 
-  const { mutate: changePassword, isLoading: changePasswordLoading } = trpc.auth.changePassword.useMutation({
+  const { mutate: changePassword, isPending: changePasswordLoading } = trpc.auth.changePassword.useMutation({
     onSuccess: () => {
       toast.success('密码修改成功，请使用新密码登录')
       setShowPasswordChange(false)
@@ -41,7 +41,7 @@ export default function SettingsPage() {
     onError: (error) => toast.error(error.message),
   })
 
-  const { mutate: deactivate, isLoading: deactivating } = trpc.auth.deactivate.useMutation({
+  const { mutate: deactivate, isPending: deactivating } = trpc.auth.deactivate.useMutation({
     onSuccess: () => {
       toast.success('账号已注销')
       signOut({ redirect: false })
@@ -52,8 +52,11 @@ export default function SettingsPage() {
 
   const handleExport = async (format: string) => {
     try {
-      const result = await trpc.export.exportProfile.query({ circleId: '', format: format as 'JSON' | 'CSV' })
-      const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: 'application/json' })
+      const res = await fetch(`/api/trpc/export.exportProfile?batch=1&input=${encodeURIComponent(JSON.stringify({ 0: { json: { circleId: '', format: format as 'JSON' | 'CSV' } } }))}`, {
+        headers: { 'content-type': 'application/json' },
+      })
+      const result = await res.json()
+      const blob = new Blob([JSON.stringify(result.result?.data?.json, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url

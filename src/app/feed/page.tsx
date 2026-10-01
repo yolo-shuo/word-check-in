@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Flame, Plus, Users, BookOpen, Loader2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
+import { skipToken } from '@tanstack/react-query'
 
 function FeedContent() {
   const searchParams = useSearchParams()
@@ -18,22 +19,22 @@ function FeedContent() {
 
   // 只在 circleId 存在时加载数据
   const { data: feed, isLoading: loadingFeed } = trpc.feed.list.useQuery(
-    circleId ? { circleId, skip: 0, take: 20 } : undefined,
+    circleId ? { circleId, skip: 0, take: 20 } : skipToken,
     { enabled: !!circleId, staleTime: 30000 }
   )
 
   const { data: todayCheckin } = trpc.checkin.getToday.useQuery(
-    circleId ? { circleId } : undefined,
+    circleId ? { circleId } : skipToken,
     { enabled: !!circleId, staleTime: 30000 }
   )
 
   const { data: stats } = trpc.stats.profile.useQuery(
-    circleId ? { circleId } : undefined,
+    circleId ? { circleId } : skipToken,
     { enabled: !!circleId, staleTime: 30000 }
   )
 
   const { data: circleStats } = trpc.stats.circle.useQuery(
-    circleId ? { circleId } : undefined,
+    circleId ? { circleId } : skipToken,
     { enabled: !!circleId, staleTime: 30000 }
   )
 

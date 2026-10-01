@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CircleSelector } from '@/components/circle-selector'
 import { Button } from '@/components/ui/button'
 import { Download } from 'lucide-react'
+import { skipToken } from '@tanstack/react-query'
 
 function CircleStatsContent() {
   const searchParams = useSearchParams()
@@ -14,7 +15,7 @@ function CircleStatsContent() {
   const [showMethodology, setShowMethodology] = useState(false)
 
   const { data: stats, isLoading, error } = trpc.stats.circle.useQuery(
-    circleId ? { circleId } : undefined,
+    circleId ? { circleId } : skipToken,
     { enabled: !!circleId }
   )
 

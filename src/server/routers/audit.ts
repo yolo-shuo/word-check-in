@@ -1,23 +1,21 @@
 import { z } from 'zod'
 import { TRPCError } from '@trpc/server'
-import { router } from '../trpc'
+import { router, publicProcedure } from '../trpc'
 
-const listProcedure = {
-  input: z.object({
+const listProcedure = publicProcedure
+  .input(z.object({
     circleId: z.string(),
     skip: z.number().default(0),
     take: z.number().default(100),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .query(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
-    // Check membership
     const member = await ctx.prisma.circleMember.findFirst({
       where: { circleId: input.circleId, userId: ctx.user.id, leftAt: null },
     })
     if (!member) throw new TRPCError({ code: 'FORBIDDEN', message: '没有权限' })
 
-    // Get all member IDs for this circle
     const circleMembers = await ctx.prisma.circleMember.findMany({
       where: { circleId: input.circleId, leftAt: null },
       select: { userId: true },
@@ -41,8 +39,8 @@ const listProcedure = {
     })
 
     return logs
-  },
-}
+  })
 
-export const auditRouter = router()
-  .query('list', listProcedure)
+export const auditRouter = router({
+  list: listProcedure,
+})

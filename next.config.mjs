@@ -1,8 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Required by Dockerfile: produces the self-contained .next/standalone output
-  // (server.js + production-only node_modules) that the runner stage copies.
-  output: 'standalone',
+  // output: 'standalone', // Disabled for dev — causes missing vendor chunks
   experimental: {
     serverComponentsExternalPackages: ['argon2'],
   },
@@ -18,7 +16,6 @@ const nextConfig = {
       },
     ],
   },
-
 }
 
 export default nextConfig

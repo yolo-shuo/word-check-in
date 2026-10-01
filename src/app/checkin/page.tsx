@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CircleSelector } from '@/components/circle-selector'
 import { useSession } from 'next-auth/react'
 import toast from 'react-hot-toast'
+import { skipToken } from '@tanstack/react-query'
 
 function CheckinContent() {
   const searchParams = useSearchParams()
@@ -26,11 +27,10 @@ function CheckinContent() {
   const [reviewWordCount, setReviewWordCount] = useState(0)
   const [masteryLevel, setMasteryLevel] = useState<'easy' | 'normal' | 'hard'>('normal')
 
-  const { data: vocabVersions, isLoading: loadingVocab } = trpc.vocab.listVersions.useQuery({ isActive: true })
+  const { data: vocabVersions, isPending: loadingVocab } = trpc.vocab.listVersions.useQuery({ isActive: true })
 
-  const { data: todayCheckin, isLoading: loadingToday } = trpc.checkin.getToday.useQuery(
-    circleId ? { circleId } : undefined,
-    { enabled: !!circleId }
+  const { data: todayCheckin, isPending: loadingToday } = trpc.checkin.getToday.useQuery(
+    circleId ? { circleId } : skipToken
   )
 
   // 自动选中唯一词库
@@ -40,7 +40,7 @@ function CheckinContent() {
     }
   }, [vocabVersions, vocabVersionId])
 
-  const { mutate: createCheckin, isLoading: createLoading } = trpc.checkin.create.useMutation({
+  const { mutate: createCheckin, isPending: createLoading } = trpc.checkin.create.useMutation({
     onSuccess: () => {
       toast.success('打卡成功！')
       setWordCount(50)
@@ -58,7 +58,7 @@ function CheckinContent() {
     },
     onSettled: () => setLoading(false),
   })
-  const { mutate: saveDraft, isLoading: draftLoading } = trpc.checkin.saveDraft.useMutation({
+  const { mutate: saveDraft, isPending: draftLoading } = trpc.checkin.saveDraft.useMutation({
     onSuccess: () => {
       toast.success('草稿已保存，下次可以恢复继续填写')
     },

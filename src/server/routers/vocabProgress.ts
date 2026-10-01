@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { router } from '../trpc'
+import { router, publicProcedure } from '../trpc'
 import { TRPCError } from '@trpc/server'
 
 // Helper to check if user is logged in
@@ -11,17 +11,17 @@ function requireUser(ctx: any) {
 }
 
 // Get words due for review
-const getDueWordsProcedure = {
-  input: z.object({
+const getDueWordsProcedure = publicProcedure
+  .input(z.object({
     versionId: z.string().nullish(),
     take: z.number().default(20),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .query(async ({ input, ctx }) => {
     requireUser(ctx)
 
     const words = await ctx.prisma.wordProgress.findMany({
       where: {
-        userId: ctx.user.id,
+        userId: ctx.user!.id,
         mastery: { in: ['LEARNING', 'KNOWN', 'REVIEWING'] },
         nextReviewAt: { lte: new Date() },
         ...(input.versionId && {
@@ -36,19 +36,18 @@ const getDueWordsProcedure = {
     })
 
     return words
-  }
-}
+  })
 
 // Get learning progress stats
-const getProgressStatsProcedure = {
-  input: z.object({
+const getProgressStatsProcedure = publicProcedure
+  .input(z.object({
     versionId: z.string().nullish(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .query(async ({ input, ctx }) => {
     requireUser(ctx)
 
     const where = {
-      userId: ctx.user.id,
+      userId: ctx.user!.id,
       ...(input.versionId && {
         entry: { versionId: input.versionId }
       })
@@ -69,16 +68,15 @@ const getProgressStatsProcedure = {
     }
 
     return { totalWords, masteryStats }
-  }
-}
+  })
 
 // Review a word (update SM-2 algorithm)
-const reviewWordProcedure = {
-  input: z.object({
+const reviewWordProcedure = publicProcedure
+  .input(z.object({
     entryId: z.string(),
     quality: z.number().min(0).max(5),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     requireUser(ctx)
 
     const { entryId, quality } = input
@@ -86,7 +84,7 @@ const reviewWordProcedure = {
     let progress = await ctx.prisma.wordProgress.findUnique({
       where: {
         userId_entryId: {
-          userId: ctx.user.id,
+          userId: ctx.user!.id,
           entryId
         }
       }
@@ -95,7 +93,7 @@ const reviewWordProcedure = {
     if (!progress) {
       progress = await ctx.prisma.wordProgress.create({
         data: {
-          userId: ctx.user.id,
+          userId: ctx.user!.id,
           entryId,
           mastery: 'NEW'
         }
@@ -141,21 +139,20 @@ const reviewWordProcedure = {
     })
 
     return updated
-  }
-}
+  })
 
 // Mark word as mastered (manual override)
-const markMasteredProcedure = {
-  input: z.object({
+const markMasteredProcedure = publicProcedure
+  .input(z.object({
     entryId: z.string(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     requireUser(ctx)
 
     return await ctx.prisma.wordProgress.upsert({
       where: {
         userId_entryId: {
-          userId: ctx.user.id,
+          userId: ctx.user!.id,
           entryId: input.entryId
         }
       },
@@ -164,28 +161,27 @@ const markMasteredProcedure = {
         nextReviewAt: null
       },
       create: {
-        userId: ctx.user.id,
+        userId: ctx.user!.id,
         entryId: input.entryId,
         mastery: 'MASTERED'
       }
     })
-  }
-}
+  })
 
 // Get review queue (words to review today)
-const getReviewQueueProcedure = {
-  input: z.object({
+const getReviewQueueProcedure = publicProcedure
+  .input(z.object({
     versionId: z.string().nullish(),
     take: z.number().default(50),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .query(async ({ input, ctx }) => {
     requireUser(ctx)
 
     const now = new Date()
 
     const words = await ctx.prisma.wordProgress.findMany({
       where: {
-        userId: ctx.user.id,
+        userId: ctx.user!.id,
         mastery: { in: ['LEARNING', 'KNOWN', 'REVIEWING'] },
         nextReviewAt: { lte: now },
         ...(input.versionId && {
@@ -200,18 +196,17 @@ const getReviewQueueProcedure = {
     })
 
     return words
-  }
-}
+  })
 
 // Get all words with progress for a version
-const getWordsWithProgressProcedure = {
-  input: z.object({
+const getWordsWithProgressProcedure = publicProcedure
+  .input(z.object({
     versionId: z.string(),
     skip: z.number().default(0),
     take: z.number().default(50),
     mastery: z.enum(['NEW', 'LEARNING', 'KNOWN', 'MASTERED', 'REVIEWING']).optional(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .query(async ({ input, ctx }) => {
     requireUser(ctx)
 
     const [entries, total] = await Promise.all([
@@ -232,7 +227,7 @@ const getWordsWithProgressProcedure = {
           level: true,
           orderIndex: true,
           progress: {
-            where: { userId: ctx.user.id },
+            where: { userId: ctx.user!.id },
             select: { mastery: true, reviewCount: true, nextReviewAt: true }
           }
         }
@@ -243,7 +238,7 @@ const getWordsWithProgressProcedure = {
           ...(input.mastery && {
             progress: {
               some: {
-                userId: ctx.user.id,
+                userId: ctx.user!.id,
                 mastery: input.mastery
               }
             }
@@ -253,13 +248,13 @@ const getWordsWithProgressProcedure = {
     ])
 
     return { entries, total }
-  }
-}
+  })
 
-export const vocabProgressRouter = router()
-  .query('getDueWords', getDueWordsProcedure)
-  .query('getProgressStats', getProgressStatsProcedure)
-  .query('getReviewQueue', getReviewQueueProcedure)
-  .query('getWordsWithProgress', getWordsWithProgressProcedure)
-  .mutation('reviewWord', reviewWordProcedure)
-  .mutation('markMastered', markMasteredProcedure)
+export const vocabProgressRouter = router({
+  getDueWords: getDueWordsProcedure,
+  getProgressStats: getProgressStatsProcedure,
+  getReviewQueue: getReviewQueueProcedure,
+  getWordsWithProgress: getWordsWithProgressProcedure,
+  reviewWord: reviewWordProcedure,
+  markMastered: markMasteredProcedure,
+})

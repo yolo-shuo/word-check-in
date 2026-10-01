@@ -26,7 +26,7 @@ export function CircleNav() {
     { href: '/feed', label: '动态', active: pathname === '/feed' },
     { href: '/checkin', label: '今日打卡', active: pathname === '/checkin' },
     { href: '/discussion', label: '讨论', active: pathname === '/discussion' },
-    { href: '/members', label: '成员', active: pathname === '/members' },
+    { href: '/members', label: '搭子', active: pathname === '/members' },
     { href: '/settings/circle', label: '设置', active: pathname === '/settings/circle' },
   ]
 

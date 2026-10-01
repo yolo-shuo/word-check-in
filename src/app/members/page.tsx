@@ -12,6 +12,7 @@ import { useConfirm } from '@/components/confirm-dialog'
 import { Search, Users, CheckCircle2, XCircle } from 'lucide-react'
 
 import toast from 'react-hot-toast'
+import { skipToken } from '@tanstack/react-query'
 
 function MembersContent() {
   const searchParams = useSearchParams()
@@ -21,17 +22,17 @@ function MembersContent() {
   const { confirm: showConfirm, Dialog: ConfirmDialog } = useConfirm()
 
   const { data: members, isLoading, error: membersError, refetch: refetchMembers } = trpc.circle.listMembers.useQuery(
-    circleId ? { circleId } : undefined,
+    circleId ? { circleId } : skipToken,
     { enabled: !!circleId }
   )
 
   const { data: inviteCodes } = trpc.circle.listInviteCodes.useQuery(
-    circleId ? { circleId } : undefined,
+    circleId ? { circleId } : skipToken,
     { enabled: !!circleId }
   )
 
   const { data: circleStats } = trpc.stats.circle.useQuery(
-    circleId ? { circleId } : undefined,
+    circleId ? { circleId } : skipToken,
     { enabled: !!circleId, staleTime: 30000 }
   )
 
@@ -46,15 +47,15 @@ function MembersContent() {
     onSuccess: () => toast.success('邀请码生成成功')
   })
 
-  const { mutate: removeMember, isLoading: removing } = trpc.circle.removeMember.useMutation({
+  const { mutate: removeMember, isPending: removing } = trpc.circle.removeMember.useMutation({
     onSuccess: () => toast.success('成员已移除')
   })
 
-  const { mutate: setAdmin, isLoading: settingAdmin } = trpc.circle.setAdmin.useMutation({
+  const { mutate: setAdmin, isPending: settingAdmin } = trpc.circle.setAdmin.useMutation({
     onSuccess: () => toast.success('管理员权限已更新')
   })
 
-  const { mutate: muteMember, isLoading: muting } = trpc.circle.muteMember.useMutation({
+  const { mutate: muteMember, isPending: muting } = trpc.circle.muteMember.useMutation({
     onSuccess: () => toast.success('禁言状态已更新')
   })
 
@@ -96,7 +97,7 @@ function MembersContent() {
   const isOwner = members?.some(m => m.userId === session?.user?.id && m.role === 'OWNER')
 
   const filteredMembers = members?.filter(m =>
-    !searchText || m.nickname.toLowerCase().includes(searchText.toLowerCase())
+    !searchText || m.user.nickname.toLowerCase().includes(searchText.toLowerCase())
   )
 
   const roleMap: Record<string, { label: string; className: string }> = {
@@ -189,9 +190,9 @@ function MembersContent() {
                   return (
                     <div key={m.id} className="flex items-center justify-between rounded-md p-3">
                       <div className="flex items-center gap-3">
-                        {m.avatarUrl ? <img src={m.avatarUrl} alt={m.nickname} className="h-10 w-10 rounded-full" /> : <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">{m.nickname[0]}</div>}
+                        {m.user.avatarUrl ? <img src={m.user.avatarUrl} alt={m.user.nickname} className="h-10 w-10 rounded-full" /> : <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">{m.user.nickname[0]}</div>}
                         <div>
-                          <div className="font-medium">{m.nickname}</div>
+                          <div className="font-medium">{m.user.nickname}</div>
                           <div className="text-xs text-muted-foreground">
                             加入于 {new Date(m.joinedAt).toLocaleDateString('zh-CN')}
                             {m.lastActiveAt && ` · 最后活跃 ${new Date(m.lastActiveAt).toLocaleDateString('zh-CN')}`}
@@ -237,7 +238,7 @@ function MembersContent() {
                             <Button
                               size="sm"
                               variant="destructive"
-                              onClick={() => handleRemove(m.userId, m.nickname)}
+                              onClick={() => handleRemove(m.userId, m.user.nickname)}
                               disabled={removing}
                             >
                               移除

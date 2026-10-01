@@ -30,7 +30,7 @@ export function CircleSelector() {
     enabled: sessionStatus === 'authenticated'
   })
 
-  const { mutate: joinCircle, isLoading: joinLoading } = trpc.circle.join.useMutation({
+  const { mutate: joinCircle, isPending: joinLoading } = trpc.circle.join.useMutation({
     onSuccess: () => {
       toast.success('加入成功！')
       setShowJoinModal(false)

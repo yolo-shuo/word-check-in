@@ -4,15 +4,17 @@ import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { trpc } from '@/providers/trpc-provider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { CircleSelector } from '@/components/circle-selector'
 import { format } from 'date-fns'
+import { skipToken } from '@tanstack/react-query'
 
 function AuditContent() {
   const searchParams = useSearchParams()
   const circleId = searchParams.get('circle')
 
   const { data: logs, isLoading, error, refetch } = trpc.audit.list.useQuery(
-    circleId ? { circleId, skip: 0, take: 100 } : undefined,
+    circleId ? { circleId, skip: 0, take: 100 } : skipToken,
     { enabled: !!circleId }
   )
 
@@ -43,7 +45,7 @@ function AuditContent() {
         <CardContent>
           {logs && logs.length === 0 ? <p className="text-muted-foreground">暂无审计日志</p> : (
             <div className="space-y-2">
-              {logs?.map((log) => (
+              {logs?.map((log: any) => (
                 <div key={log.id} className="rounded-md border p-3">
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{log.eventType}</span>

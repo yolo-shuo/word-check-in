@@ -17,7 +17,7 @@ interface CheckinCardProps {
     minutes: number
     note: string | null
     date: string
-    createdAt: string
+    createdAt: Date
     user: { nickname: string; avatarUrl: string | null }
     vocabVersion: { name: string; level: string; version: string }
     likeCount: number

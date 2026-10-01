@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { TRPCError } from '@trpc/server'
-import { router } from '../trpc'
+import { router, publicProcedure } from '../trpc'
 import { format } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
 
@@ -9,13 +9,13 @@ function getLocalDate(date: Date, timezone: string): string {
   return format(zonedDate, 'yyyy-MM-dd')
 }
 
-const listProcedure = {
-  input: z.object({
+const listProcedure = publicProcedure
+  .input(z.object({
     circleId: z.string(),
     skip: z.number().default(0),
     take: z.number().default(20),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .query(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     // Check membership
@@ -57,17 +57,16 @@ const listProcedure = {
       vocabVersion: c.vocabVersion,
       likeCount: c.likes.length,
       commentCount: c.comments.length,
-      hasLiked: c.likes.some((l) => l.userId === ctx.user.id),
+      hasLiked: c.likes.some((l) => l.userId === ctx.user?.id),
       isToday: format(c.date, 'yyyy-MM-dd') === todayStr,
     }))
-  },
-}
+  })
 
-const likeProcedure = {
-  input: z.object({
+const likeProcedure = publicProcedure
+  .input(z.object({
     checkinId: z.string(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     const checkin = await ctx.prisma.checkin.findUnique({
@@ -94,13 +93,13 @@ const likeProcedure = {
       // Like
       try {
         await ctx.prisma.like.create({
-          data: { checkinId: input.checkinId, userId: ctx.user.id },
+          data: { checkinId: input.checkinId, userId: ctx.user?.id },
         })
-      } catch (e: any) {
-        if (e.code === 'P2002') {
+      } catch (e) {
+        if (typeof e === 'object' && e !== null && 'code' in e && e.code === 'P2002') {
           // Already liked, unlike
           await ctx.prisma.like.deleteMany({
-            where: { checkinId: input.checkinId, userId: ctx.user.id },
+            where: { checkinId: input.checkinId, userId: ctx.user?.id },
           })
         } else {
           throw e
@@ -109,7 +108,7 @@ const likeProcedure = {
     }
 
     // Notify the checkin author
-    if (checkin.userId !== ctx.user.id) {
+    if (checkin.userId !== ctx.user?.id) {
       await ctx.prisma.notification.create({
         data: {
           userId: checkin.userId,
@@ -121,15 +120,14 @@ const likeProcedure = {
     }
 
     return { ok: true }
-  },
-}
+  })
 
-const addCommentProcedure = {
-  input: z.object({
+const addCommentProcedure = publicProcedure
+  .input(z.object({
     checkinId: z.string(),
     content: z.string().min(1).max(500),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     const checkin = await ctx.prisma.checkin.findUnique({
@@ -170,10 +168,10 @@ const addCommentProcedure = {
     }
 
     return comment
-  },
-}
+  })
 
-export const feedRouter = router()
-  .query('list', listProcedure)
-  .mutation('like', likeProcedure)
-  .mutation('addComment', addCommentProcedure)
+export const feedRouter = router({
+  list : listProcedure,
+  like : likeProcedure,
+  addComment : addCommentProcedure
+})

@@ -1,12 +1,12 @@
 import { z } from 'zod'
 import { TRPCError } from '@trpc/server'
-import { router } from '../trpc'
+import { router, publicProcedure } from '../trpc'
 
-const exportProfileProcedure = {
-  input: z.object({
+const exportProfileProcedure = publicProcedure
+  .input(z.object({
     format: z.enum(['JSON', 'CSV']).optional(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .query(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     const memberships = await ctx.prisma.circleMember.findMany({
@@ -67,8 +67,8 @@ const exportProfileProcedure = {
     }
 
     return { format: 'JSON', content: JSON.stringify(data, null, 2) }
-  },
-}
+  })
 
-export const exportRouter = router()
-  .query('exportProfile', exportProfileProcedure)
+export const exportRouter = router({
+  exportProfile : exportProfileProcedure
+})

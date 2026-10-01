@@ -26,7 +26,7 @@ export default function CreateCirclePage() {
   const [allowLeaderboard, setAllowLeaderboard] = useState(true)
   const [loading, setLoading] = useState(false)
 
-  const { mutate: createCircle, isLoading: createLoading } = trpc.circle.create.useMutation({
+  const { mutate: createCircle, isPending: createLoading } = trpc.circle.create.useMutation({
     onSuccess: (data) => {
       toast.success('圈子创建成功！')
       router.push('/feed?circle=' + data.id)

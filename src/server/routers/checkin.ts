@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { TRPCError } from '@trpc/server'
-import { router } from '../trpc'
+import { router, publicProcedure } from '../trpc'
 import { format } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
 
@@ -19,15 +19,15 @@ const assertCircleMember = async (ctx: any, circleId: string) => {
   return member
 }
 
-const createProcedure = {
-  input: z.object({
+const createProcedure = publicProcedure
+  .input(z.object({
     circleId: z.string(),
     vocabVersionId: z.string(),
     wordCount: z.number().min(1).max(2000),
     minutes: z.number().min(1).max(720),
     note: z.string().max(300).optional(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     await assertCircleMember(ctx, input.circleId)
@@ -122,19 +122,18 @@ const createProcedure = {
       })
 
       return checkin
-    } catch (e: any) {
+    } catch (e) {
       if (e instanceof TRPCError) throw e
-      if (e.code === 'P2002') {
+      if (typeof e === 'object' && e !== null && 'code' in e && e.code === 'P2002') {
         throw new TRPCError({ code: 'CONFLICT', message: '今天已经打过卡了' })
       }
       throw e
     }
-  },
-}
+  })
 
-const getTodayProcedure = {
-  input: z.object({ circleId: z.string() }),
-  resolve: async ({ input, ctx }: any) => {
+const getTodayProcedure = publicProcedure
+  .input(z.object({ circleId: z.string() }))
+  .query(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     const circle = await ctx.prisma.circle.findUnique({ where: { id: input.circleId } })
@@ -161,18 +160,17 @@ const getTodayProcedure = {
       hasWithdrawn: checkin?.status === 'WITHDRAWN',
       checkin: checkin?.status === 'PUBLISHED' ? checkin : null,
     }
-  },
-}
+  })
 
-const saveDraftProcedure = {
-  input: z.object({
+const saveDraftProcedure = publicProcedure
+  .input(z.object({
     circleId: z.string(),
     vocabVersionId: z.string().optional(),
     wordCount: z.number().min(1).max(2000).optional(),
     minutes: z.number().min(1).max(720).optional(),
     note: z.string().max(300).optional(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     await assertCircleMember(ctx, input.circleId)
@@ -198,12 +196,11 @@ const saveDraftProcedure = {
     })
 
     return draft
-  },
-}
+  })
 
-const getDraftProcedure = {
-  input: z.object({ circleId: z.string() }),
-  resolve: async ({ input, ctx }: any) => {
+const getDraftProcedure = publicProcedure
+  .input(z.object({ circleId: z.string() }))
+  .query(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     const draft = await ctx.prisma.checkinDraft.findUnique({
@@ -213,12 +210,11 @@ const getDraftProcedure = {
     })
 
     return draft
-  },
-}
+  })
 
-const getProcedure = {
-  input: z.object({ id: z.string() }),
-  resolve: async ({ input, ctx }: any) => {
+const getProcedure = publicProcedure
+  .input(z.object({ id: z.string() }))
+  .query(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     const checkin = await ctx.prisma.checkin.findUnique({
@@ -238,7 +234,7 @@ const getProcedure = {
 
     if (!checkin) throw new TRPCError({ code: 'NOT_FOUND', message: '打卡不存在' })
 
-    const hasLiked = checkin.likes.some((l) => l.userId === ctx.user.id)
+    const hasLiked = checkin.likes.some((l) => l.userId === ctx.user?.id)
 
     return {
       ...checkin,
@@ -246,16 +242,15 @@ const getProcedure = {
       likeCount: checkin.likes.length,
       commentCount: checkin.comments.length,
     }
-  },
-}
+  })
 
-const listProcedure = {
-  input: z.object({
+const listProcedure = publicProcedure
+  .input(z.object({
     circleId: z.string(),
     skip: z.number().default(0),
     take: z.number().default(20),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .query(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     await assertCircleMember(ctx, input.circleId)
@@ -274,17 +269,16 @@ const listProcedure = {
         vocabVersion: { select: { name: true, level: true, version: true } },
       },
     })
-  },
-}
+  })
 
-const updateProcedure = {
-  input: z.object({
+const updateProcedure = publicProcedure
+  .input(z.object({
     id: z.string(),
     wordCount: z.number().min(1).max(2000).optional(),
     minutes: z.number().min(1).max(720).optional(),
     note: z.string().max(300).optional(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     const checkin = await ctx.prisma.checkin.findUnique({ where: { id: input.id } })
@@ -355,12 +349,11 @@ const updateProcedure = {
         comments: true,
       },
     })
-  },
-}
+  })
 
-const withdrawProcedure = {
-  input: z.object({ id: z.string() }),
-  resolve: async ({ input, ctx }: any) => {
+const withdrawProcedure = publicProcedure
+  .input(z.object({ id: z.string() }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     const checkin = await ctx.prisma.checkin.findUnique({ where: { id: input.id } })
@@ -387,15 +380,15 @@ const withdrawProcedure = {
     })
 
     return { id: checkin.id, status: 'WITHDRAWN' }
-  },
-}
+  })
 
-export const checkinRouter = router()
-  .mutation('create', createProcedure)
-  .query('getToday', getTodayProcedure)
-  .mutation('saveDraft', saveDraftProcedure)
-  .query('getDraft', getDraftProcedure)
-  .query('get', getProcedure)
-  .query('list', listProcedure)
-  .mutation('update', updateProcedure)
-  .mutation('withdraw', withdrawProcedure)
+export const checkinRouter = router({
+  create : createProcedure,
+  getToday : getTodayProcedure,
+  saveDraft : saveDraftProcedure,
+  getDraft : getDraftProcedure,
+  get : getProcedure,
+  list : listProcedure,
+  update : updateProcedure,
+  withdraw : withdrawProcedure
+})

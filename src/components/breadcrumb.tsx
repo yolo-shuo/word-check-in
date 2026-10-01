@@ -6,17 +6,17 @@ import { ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const pathMap: Record<string, string> = {
-  '/feed': '动态',
-  '/checkin': '今日打卡',
+  '/feed': '今日',
+  '/checkin': '记录',
   '/discussion': '讨论',
-  '/members': '成员管理',
-  '/stats/profile': '个人统计',
+  '/members': '搭子',
+  '/stats/profile': '我的',
   '/stats/circle': '圈子统计',
   '/admin/audit': '审计日志',
   '/settings': '个人设置',
   '/settings/circle': '圈子设置',
   '/circle/create': '创建圈子',
-  '/vocab': '词库',
+  '/vocab': '资源',
   '/join': '加入圈子',
   '/notifications': '通知',
 }

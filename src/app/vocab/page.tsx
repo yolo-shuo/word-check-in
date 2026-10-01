@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { trpc } from '@/providers/trpc-provider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -172,7 +172,7 @@ function WordCard({ word, onProgressUpdate, showMasteryButtons = true, onMarked 
   )
 }
 
-export default function VocabPage() {
+function VocabPageContent() {
   const searchParams = useSearchParams()
   const circleId = searchParams.get('circle') || ''
   const { data: session } = useSession()
@@ -412,5 +412,13 @@ export default function VocabPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function VocabPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center">加载中...</div>}>
+      <VocabPageContent />
+    </Suspense>
   )
 }

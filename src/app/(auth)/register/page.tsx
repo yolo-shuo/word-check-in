@@ -45,7 +45,7 @@ export default function RegisterPage() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">创建账户</CardTitle>
-          <CardDescription className="text-center">加入单词打卡，和朋友一起学习</CardDescription>
+          <CardDescription className="text-center">加入坚持搭子，和朋友一起学习</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

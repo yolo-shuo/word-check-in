@@ -1,10 +1,10 @@
 import { z } from 'zod'
 import { TRPCError } from '@trpc/server'
-import { router } from '../trpc'
+import { router, publicProcedure } from '../trpc'
 import { prisma } from '../prisma'
 
-const createProcedure = {
-  input: z.object({
+const createProcedure = publicProcedure
+  .input(z.object({
     name: z.string().min(1, '请输入圈子名称').max(50, '圈子名称不能超过50个字符'),
     description: z.string().max(200).optional(),
     timezone: z.string().optional(),
@@ -14,8 +14,8 @@ const createProcedure = {
     maxMembers: z.number().min(2).max(500).optional(),
     allowMemberInvite: z.boolean().optional(),
     allowLeaderboard: z.boolean().optional(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) {
       throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
     }
@@ -44,11 +44,10 @@ const createProcedure = {
     })
 
     return { id: circle.id, name: circle.name }
-  }
-}
+  })
 
-const updateProcedure = {
-  input: z.object({
+const updateProcedure = publicProcedure
+  .input(z.object({
     circleId: z.string(),
     name: z.string().min(1).max(50).optional(),
     description: z.string().max(200).optional(),
@@ -58,8 +57,8 @@ const updateProcedure = {
     maxMembers: z.number().min(2).max(500).optional(),
     allowMemberInvite: z.boolean().optional(),
     allowLeaderboard: z.boolean().optional(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     await assertCircleOwner(ctx, input.circleId)
@@ -71,14 +70,13 @@ const updateProcedure = {
     })
 
     return { id: updated.id, name: updated.name }
-  }
-}
+  })
 
-const joinProcedure = {
-  input: z.object({
+const joinProcedure = publicProcedure
+  .input(z.object({
     inviteCode: z.string(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) {
       throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
     }
@@ -125,11 +123,10 @@ const joinProcedure = {
     })
 
     return { circleId: invite.circleId }
-  }
-}
+  })
 
-const myCirclesProcedure = {
-  resolve: async ({ ctx }: any) => {
+const myCirclesProcedure = publicProcedure
+  .query(async ({ ctx }) => {
     if (!ctx.user) {
       throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
     }
@@ -144,16 +141,15 @@ const myCirclesProcedure = {
     return memberships.map((m) => ({
       ...m.circle,
       role: m.role,
-      isOwner: m.circle.ownerId === ctx.user.id,
+      isOwner: m.circle.ownerId === ctx.user?.id,
     }))
-  }
-}
+  })
 
-const getProcedure = {
-  input: z.object({
+const getProcedure = publicProcedure
+  .input(z.object({
     circleId: z.string(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .query(async ({ input, ctx }) => {
     if (!ctx.user) {
       throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
     }
@@ -173,13 +169,14 @@ const getProcedure = {
       },
     })
 
+    if (!circle) throw new TRPCError({ code: 'NOT_FOUND', message: '圈子不存在' })
+
     return {
       ...circle,
       role: member.role,
       memberCount: circle._count.members,
     }
-  }
-}
+  })
 
 const assertCircleOwner = async (ctx: any, circleId: string) => {
   const circle = await ctx.prisma.circle.findUnique({ where: { id: circleId } })
@@ -197,9 +194,9 @@ const assertCircleAdmin = async (ctx: any, circleId: string) => {
   }
 }
 
-const listMembersProcedure = {
-  input: z.object({ circleId: z.string() }),
-  resolve: async ({ input, ctx }: any) => {
+const listMembersProcedure = publicProcedure
+  .input(z.object({ circleId: z.string() }))
+  .query(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     const member = await ctx.prisma.circleMember.findFirst({
@@ -214,12 +211,11 @@ const listMembersProcedure = {
       },
       orderBy: { joinedAt: 'asc' },
     })
-  },
-}
+  })
 
-const listInviteCodesProcedure = {
-  input: z.object({ circleId: z.string() }),
-  resolve: async ({ input, ctx }: any) => {
+const listInviteCodesProcedure = publicProcedure
+  .input(z.object({ circleId: z.string() }))
+  .query(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     const member = await ctx.prisma.circleMember.findFirst({
@@ -231,16 +227,15 @@ const listInviteCodesProcedure = {
       where: { circleId: input.circleId },
       orderBy: { createdAt: 'desc' },
     })
-  },
-}
+  })
 
-const createInviteCodeProcedure = {
-  input: z.object({
+const createInviteCodeProcedure = publicProcedure
+  .input(z.object({
     circleId: z.string(),
     maxUses: z.number().optional(),
     expiresAt: z.coerce.date().optional(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     const circle = await ctx.prisma.circle.findUnique({ where: { id: input.circleId } })
@@ -279,15 +274,14 @@ const createInviteCodeProcedure = {
         expiresAt: input.expiresAt,
       },
     })
-  },
-}
+  })
 
-const revokeInviteCodeProcedure = {
-  input: z.object({
+const revokeInviteCodeProcedure = publicProcedure
+  .input(z.object({
     circleId: z.string(),
     codeId: z.string(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     await assertCircleOwner(ctx, input.circleId)
@@ -301,16 +295,15 @@ const revokeInviteCodeProcedure = {
       where: { id: input.codeId },
       data: { revokedAt: new Date() },
     })
-  },
-}
+  })
 
-const removeMemberProcedure = {
-  input: z.object({
+const removeMemberProcedure = publicProcedure
+  .input(z.object({
     circleId: z.string(),
     userId: z.string(),
     reason: z.string().optional(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     await assertCircleAdmin(ctx, input.circleId)
@@ -342,16 +335,15 @@ const removeMemberProcedure = {
     ])
 
     return { id: member.id, leftAt: new Date() }
-  },
-}
+  })
 
-const setAdminProcedure = {
-  input: z.object({
+const setAdminProcedure = publicProcedure
+  .input(z.object({
     circleId: z.string(),
     userId: z.string(),
     isAdmin: z.boolean(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     await assertCircleOwner(ctx, input.circleId)
@@ -385,16 +377,15 @@ const setAdminProcedure = {
     })
 
     return updated
-  },
-}
+  })
 
-const muteMemberProcedure = {
-  input: z.object({
+const muteMemberProcedure = publicProcedure
+  .input(z.object({
     circleId: z.string(),
     userId: z.string(),
     muted: z.boolean(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     await assertCircleAdmin(ctx, input.circleId)
@@ -424,15 +415,14 @@ const muteMemberProcedure = {
     })
 
     return updated
-  },
-}
+  })
 
-const transferOwnerProcedure = {
-  input: z.object({
+const transferOwnerProcedure = publicProcedure
+  .input(z.object({
     circleId: z.string(),
     newOwnerId: z.string(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     await assertCircleOwner(ctx, input.circleId)
@@ -472,14 +462,13 @@ const transferOwnerProcedure = {
     ])
 
     return { success: true }
-  },
-}
+  })
 
-const dissolveProcedure = {
-  input: z.object({
+const dissolveProcedure = publicProcedure
+  .input(z.object({
     circleId: z.string(),
-  }),
-  resolve: async ({ input, ctx }: any) => {
+  }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     await assertCircleOwner(ctx, input.circleId)
@@ -513,12 +502,11 @@ const dissolveProcedure = {
     })
 
     return { success: true }
-  },
-}
+  })
 
-const leaveProcedure = {
-  input: z.object({ circleId: z.string() }),
-  resolve: async ({ input, ctx }: any) => {
+const leaveProcedure = publicProcedure
+  .input(z.object({ circleId: z.string() }))
+  .mutation(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
 
     const circle = await ctx.prisma.circle.findUnique({ where: { id: input.circleId } })
@@ -550,22 +538,22 @@ const leaveProcedure = {
     ])
 
     return { left: true }
-  },
-}
+  })
 
-export const circleRouter = router()
-  .mutation('create', createProcedure)
-  .mutation('update', updateProcedure)
-  .mutation('join', joinProcedure)
-  .query('myCircles', myCirclesProcedure)
-  .query('get', getProcedure)
-  .query('listMembers', listMembersProcedure)
-  .query('listInviteCodes', listInviteCodesProcedure)
-  .mutation('createInviteCode', createInviteCodeProcedure)
-  .mutation('revokeInviteCode', revokeInviteCodeProcedure)
-  .mutation('removeMember', removeMemberProcedure)
-  .mutation('setAdmin', setAdminProcedure)
-  .mutation('muteMember', muteMemberProcedure)
-  .mutation('transferOwner', transferOwnerProcedure)
-  .mutation('dissolve', dissolveProcedure)
-  .mutation('leave', leaveProcedure)
+export const circleRouter = router({
+  create : createProcedure,
+  update : updateProcedure,
+  join : joinProcedure,
+  myCircles : myCirclesProcedure,
+  get : getProcedure,
+  listMembers : listMembersProcedure,
+  listInviteCodes : listInviteCodesProcedure,
+  createInviteCode : createInviteCodeProcedure,
+  revokeInviteCode : revokeInviteCodeProcedure,
+  removeMember : removeMemberProcedure,
+  setAdmin : setAdminProcedure,
+  muteMember : muteMemberProcedure,
+  transferOwner : transferOwnerProcedure,
+  dissolve : dissolveProcedure,
+  leave : leaveProcedure
+})

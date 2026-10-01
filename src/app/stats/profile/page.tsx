@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Download } from 'lucide-react'
 
 import { format } from 'date-fns'
+import { skipToken } from '@tanstack/react-query'
 
 function StatsContent() {
   const searchParams = useSearchParams()
@@ -20,12 +21,12 @@ function StatsContent() {
   const [showMethodology, setShowMethodology] = useState(false)
 
   const { data: stats, isLoading, error } = trpc.stats.profile.useQuery(
-    circleId ? { circleId } : undefined,
+    circleId ? { circleId } : skipToken,
     { enabled: !!circleId }
   )
 
   const { data: calendar } = trpc.stats.calendar.useQuery(
-    circleId ? { circleId, year: calYear, month: calMonth } : undefined,
+    circleId ? { circleId, year: calYear, month: calMonth } : skipToken,
     { enabled: !!circleId && view === 'calendar' }
   )
 

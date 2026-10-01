@@ -12,26 +12,28 @@ import { useConfirm } from '@/components/confirm-dialog'
 import { Download, BarChart3, Shield } from 'lucide-react'
 
 import toast from 'react-hot-toast'
+import { skipToken } from '@tanstack/react-query'
 
 function CircleSettingsContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const circleId = searchParams.get('circle')
   const { confirm: showConfirm, Dialog: ConfirmDialog } = useConfirm()
+  const utils = trpc.useUtils()
 
   const [editName, setEditName] = useState('')
   const [editDesc, setEditDesc] = useState('')
   const [showEdit, setShowEdit] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  const { data: circle, isLoading: loadingCircle, error: circleError } = trpc.circle.get.useQuery(
-    circleId ? { circleId } : undefined,
+  const { data: circle, isPending: loadingCircle, error: circleError } = trpc.circle.get.useQuery(
+    circleId ? { circleId } : skipToken,
     { enabled: !!circleId }
   )
 
   // 讨论区设置
   const { data: discussionSettings } = trpc.discussion.getSettings.useQuery(
-    circleId ? { circleId } : undefined,
+    circleId ? { circleId } : skipToken,
     { enabled: !!circleId }
   )
 
@@ -40,7 +42,7 @@ function CircleSettingsContent() {
     onError: (error) => toast.error(error.message),
   })
 
-  const { mutate: updateCircle, isLoading: updating } = trpc.circle.update.useMutation({
+  const { mutate: updateCircle, isPending: updating } = trpc.circle.update.useMutation({
     onSuccess: () => {
       toast.success('圈子信息已更新')
       setShowEdit(false)
@@ -48,7 +50,7 @@ function CircleSettingsContent() {
     onError: (error) => toast.error(error.message),
   })
 
-  const { mutate: transferOwner, isLoading: transferring } = trpc.circle.transferOwner.useMutation({
+  const { mutate: transferOwner, isPending: transferring } = trpc.circle.transferOwner.useMutation({
     onSuccess: () => {
       toast.success('所有权转移成功')
       router.push('/feed')
@@ -56,7 +58,7 @@ function CircleSettingsContent() {
     onError: (error) => toast.error(error.message),
   })
 
-  const { mutate: dissolve, isLoading: dissolving } = trpc.circle.dissolve.useMutation({
+  const { mutate: dissolve, isPending: dissolving } = trpc.circle.dissolve.useMutation({
     onSuccess: () => {
       toast.success('圈子已解散')
       router.push('/feed')
@@ -64,7 +66,7 @@ function CircleSettingsContent() {
     onError: (error) => toast.error(error.message),
   })
 
-  const { mutate: leave, isLoading: leaving } = trpc.circle.leave.useMutation({
+  const { mutate: leave, isPending: leaving } = trpc.circle.leave.useMutation({
     onSuccess: () => {
       toast.success('已退出圈子')
       router.push('/feed')
@@ -87,7 +89,7 @@ function CircleSettingsContent() {
         <p className="text-red-500">加载失败：{circleError.message}</p>
         <p className="text-sm text-muted-foreground">请确保已登录并选择正确的圈子</p>
         <Button variant="outline" onClick={() => {
-          trpc.circle.get.invalidate({ circleId })
+          utils.circle.get.invalidate({ circleId })
         }}>
           重试
         </Button>
@@ -145,7 +147,7 @@ function CircleSettingsContent() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">圈子信息</CardTitle>
             {isOwner && (
-              <Button variant="outline" size="sm" onClick={() => { setEditName(circle.name); setEditDesc(''); setShowEdit(!showEdit) }}>
+              <Button variant="outline" size="sm" onClick={() => { setEditName(circle.name || ''); setEditDesc(''); setShowEdit(!showEdit) }}>
                 {showEdit ? '取消编辑' : '编辑'}
               </Button>
             )}

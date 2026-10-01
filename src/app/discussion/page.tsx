@@ -12,6 +12,7 @@ import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import { useSession } from 'next-auth/react'
 import { Trash2, RefreshCw, MessageSquare, Image } from 'lucide-react'
+import { skipToken } from '@tanstack/react-query'
 
 function DiscussionContent() {
   const searchParams = useSearchParams()
@@ -24,18 +25,18 @@ function DiscussionContent() {
 
   // 获取消息列表
   const { data, isLoading, error, refetch } = trpc.discussion.list.useQuery(
-    circleId ? { circleId } : undefined,
+    circleId ? { circleId } : skipToken,
     { enabled: !!circleId, refetchInterval: 30000 }
   )
 
   // 获取讨论区设置
   const { data: settings } = trpc.discussion.getSettings.useQuery(
-    circleId ? { circleId } : undefined,
+    circleId ? { circleId } : skipToken,
     { enabled: !!circleId }
   )
 
   // 发送消息
-  const { mutate: sendMessage, isLoading: sending } = trpc.discussion.send.useMutation({
+  const { mutate: sendMessage, isPending: sending } = trpc.discussion.send.useMutation({
     onSuccess: () => {
       setMessageText('')
       toast.success('发送成功')
@@ -54,7 +55,7 @@ function DiscussionContent() {
 
   // 获取未读数量
   const { data: unread } = trpc.discussion.unreadCount.useQuery(
-    circleId ? { circleId } : undefined,
+    circleId ? { circleId } : skipToken,
     { enabled: !!circleId, refetchInterval: 30000 }
   )
 
@@ -298,7 +299,7 @@ function DiscussionContent() {
               variant="outline"
               size="icon"
               onClick={() => {
-                document.querySelector('input[type="file"]')?.click()
+                (document.querySelector('input[type="file"]') as HTMLInputElement | null)?.click()
               }}
               disabled={sending}
               title="发送图片"

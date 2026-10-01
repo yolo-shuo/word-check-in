@@ -11,17 +11,18 @@ import { exportRouter } from './export'
 import { notificationRouter } from './notification'
 import { discussionRouter } from './discussion'
 
-export const appRouter = router()
-  .merge('auth.', authRouter)
-  .merge('circle.', circleRouter)
-  .merge('checkin.', checkinRouter)
-  .merge('feed.', feedRouter)
-  .merge('stats.', statsRouter)
-  .merge('vocab.', vocabRouter)
-  .merge('vocabProgress.', vocabProgressRouter)
-  .merge('audit.', auditRouter)
-  .merge('export.', exportRouter)
-  .merge('notification.', notificationRouter)
-  .merge('discussion.', discussionRouter)
+export const appRouter = router({
+  auth: authRouter,
+  circle: circleRouter,
+  checkin: checkinRouter,
+  feed: feedRouter,
+  stats: statsRouter,
+  vocab: vocabRouter,
+  vocabProgress: vocabProgressRouter,
+  audit: auditRouter,
+  export: exportRouter,
+  notification: notificationRouter,
+  discussion: discussionRouter,
+})
 
 export type AppRouter = typeof appRouter

@@ -9,10 +9,11 @@ import { useConfirm } from '@/components/confirm-dialog'
 import { useState } from 'react'
 
 const navItems = [
-  { href: '/feed', label: '动态' },
-  { href: '/checkin', label: '打卡' },
-  { href: '/stats/profile', label: '统计' },
-  { href: '/vocab', label: '词库' },
+  { href: '/feed', label: '今日' },
+  { href: '/checkin', label: '记录' },
+  { href: '/members', label: '搭子' },
+  { href: '/vocab', label: '资源' },
+  { href: '/stats/profile', label: '我的' },
 ]
 
 export function Navbar() {
@@ -49,7 +50,7 @@ export function Navbar() {
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
           <Link href={withCircle('/feed')} className="flex items-center gap-2">
-            <span className="text-lg font-bold text-primary">单词打卡</span>
+            <span className="text-lg font-bold text-primary">坚持搭子</span>
             {isGuest && (
               <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs text-yellow-800">
                 游客模式

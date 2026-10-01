@@ -12,15 +12,15 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: {
-    default: '单词打卡 - 和朋友一起坚持学习',
-    template: '%s | 单词打卡',
+    default: '坚持搭子 - 和朋友一起坚持学习',
+    template: '%s | 坚持搭子',
   },
-  description: '社区单词打卡应用 - 和朋友一起坚持背单词，记录学习进度，互相鼓励。创建学习圈子，邀请朋友一起打卡，让坚持变得更容易。',
-  keywords: ['单词打卡', '英语学习', '学习圈子', '背单词', '四六级', '学习打卡'],
+  description: '社区坚持打卡应用 - 和朋友一起坚持背单词，记录学习进度，互相鼓励。创建学习圈子，邀请朋友一起打卡，让坚持变得更容易。',
+  keywords: ['坚持搭子', '英语学习', '学习圈子', '背单词', '四六级', '学习打卡', '打卡'],
   robots: { index: false, follow: false },
   openGraph: {
-    title: '单词打卡 - 和朋友一起坚持学习',
-    description: '社区单词打卡应用，和朋友一起坚持背单词',
+    title: '坚持搭子 - 和朋友一起坚持学习',
+    description: '社区坚持打卡应用，和朋友一起坚持背单词',
     type: 'website',
   },
 }
