@@ -4,45 +4,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { callProcedure } from '@trpc/server'
 import { TRPCError } from '@trpc/server'
 import { getServerSession } from 'next-auth/next'
-import { cookies, headers } from 'next/headers'
 import { authOptions } from '@/server/auth'
 import superjson from 'superjson'
 
-const TRPC_ERROR_TO_HTTP_STATUS: Record<string, number> = {
-  PARSE_ERROR: 400,
-  BAD_REQUEST: 400,
-  NOT_FOUND: 404,
-  INTERNAL_SERVER_ERROR: 500,
-  UNAUTHORIZED: 401,
-  FORBIDDEN: 403,
-  TIMEOUT: 408,
-  CONFLICT: 409,
-  CLIENT_CLOSED_REQUEST: 499,
-  PRECONDITION_FAILED: 412,
-  PAYLOAD_TOO_LARGE: 413,
-  METHOD_NOT_SUPPORTED: 405,
-}
+
 
 const createContext = async (req: NextRequest) => {
-  // Try cookies() first (App Router), fallback to req.headers
-  let cookieGet: (name: string) => string | undefined
-  try {
-    const cookieStore = cookies()
-    cookieGet = (name: string) => cookieStore.get(name)?.value
-  } catch {
-    // Fallback to req headers
-    const cookieHeader = req.headers.get('cookie') || ''
-    const cookieMap: Record<string, string> = {}
-    cookieHeader.split('; ').forEach(c => {
-      const [k, v] = c.split('=')
-      if (k) cookieMap[k] = decodeURIComponent(v || '')
-    })
-    cookieGet = (name: string) => cookieMap[name]
-  }
-  
+  // Parse cookies from request headers (faster than cookies() in App Router)
+  const cookieHeader = req.headers.get('cookie') || ''
+  const cookieMap: Record<string, string> = {}
+  cookieHeader.split('; ').forEach(c => {
+    const [k, v] = c.split('=')
+    if (k) cookieMap[k] = decodeURIComponent(v || '')
+  })
+
   const session = await getServerSession({
     cookies: {
-      get: cookieGet,
+      get: (name: string) => cookieMap[name],
     },
     ...authOptions,
   } as any)
@@ -104,21 +82,22 @@ async function handleRequest(req: NextRequest, type: 'query' | 'mutation') {
     const ctx = await createContext(req)
     
     // Handle batched request
-    if (isBatch && path.includes(',')) {
-      const procedures = path.split(',')
+    if (isBatch) {
+      // Batch path: "proc1,proc2" for multiple, "proc" for single
+      const procedures = path.includes(',') ? path.split(',') : [path]
       const results: any[] = []
-      
+
       for (let i = 0; i < procedures.length; i++) {
         const procPath = procedures[i]
         let procInput: unknown = undefined
-        
+
         if (parsedInput && typeof parsedInput === 'object') {
-          const inputItem = parsedInput[i] || parsedInput[String(i)]
-          if (inputItem) {
+          const inputItem = parsedInput[i] ?? parsedInput[String(i)]
+          if (inputItem !== undefined) {
             procInput = deserializeInput(inputItem)
           }
         }
-        
+
         try {
           const result = await callProcedure({
             path: procPath,
@@ -131,7 +110,6 @@ async function handleRequest(req: NextRequest, type: 'query' | 'mutation') {
           results.push({ result: { type: 'json', data: serialized } })
         } catch (error) {
           if (error instanceof TRPCError) {
-            const httpStatus = TRPC_ERROR_TO_HTTP_STATUS[error.code] ?? 500
             results.push({ error: { message: error.message, code: error.code } })
           } else {
             console.error('Error in batch procedure', procPath, error)
@@ -139,7 +117,7 @@ async function handleRequest(req: NextRequest, type: 'query' | 'mutation') {
           }
         }
       }
-      
+
       return NextResponse.json(results)
     }
     
