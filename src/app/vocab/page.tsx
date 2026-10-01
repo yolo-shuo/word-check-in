@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Info, Loader2, CheckCircle2, Search, X, Play, Pause, RefreshCw, BookOpen, AlertCircle, Clock, ChevronLeft, ChevronRight, Volume2 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { useSession } from 'next-auth/react'
+import { skipToken } from '@tanstack/react-query'
 
 const levelMap: Record<string, string> = { CET4: '四级', CET6: '六级', COMBINED: '综合', CUSTOM: '自定义' }
 const levelColor: Record<string, string> = { CET4: 'bg-blue-100 text-blue-700', CET6: 'bg-purple-100 text-purple-700', COMBINED: 'bg-green-100 text-green-700', CUSTOM: 'bg-gray-100 text-gray-700' }
@@ -192,10 +193,10 @@ export default function VocabPage() {
   }, [searchTerm])
 
   const { data: versions, isLoading: versionsLoading, isError: versionsError, refetch: refetchVersions } = trpc.vocab.listVersions.useQuery({ isActive: true })
-  const { data: stats, refetch: refetchStats } = trpc.vocabProgress.getProgressStats.useQuery({ versionId: selectedVersion || undefined })
-  const { data: reviewQueue, refetch: refetchQueue } = trpc.vocabProgress.getReviewQueue.useQuery({ versionId: selectedVersion || undefined, take: 20 })
-  const { data: wordsWithProgress, isLoading: wordsLoading, isError: wordsError, refetch: refetchWords } = trpc.vocabProgress.getWordsWithProgress.useQuery({ versionId: selectedVersion, skip, take: 50, mastery: masteryFilter || undefined }, { enabled: !!selectedVersion })
-  const { data: searchResults, isLoading: searchLoading, isError: searchError } = trpc.vocab.search.useQuery({ term: debouncedTerm, level: levelFilter || undefined, skip, take: 50 }, { enabled: !!debouncedTerm && debouncedTerm.length >= 1 })
+  const { data: stats, refetch: refetchStats } = trpc.vocabProgress.getProgressStats.useQuery(selectedVersion ? { versionId: selectedVersion } : skipToken)
+  const { data: reviewQueue, refetch: refetchQueue } = trpc.vocabProgress.getReviewQueue.useQuery(selectedVersion ? { versionId: selectedVersion, take: 20 } : skipToken)
+  const { data: wordsWithProgress, isLoading: wordsLoading, isError: wordsError, refetch: refetchWords } = trpc.vocabProgress.getWordsWithProgress.useQuery(selectedVersion ? { versionId: selectedVersion, skip, take: 50, mastery: masteryFilter ? masteryFilter as 'NEW' | 'LEARNING' | 'KNOWN' | 'MASTERED' | 'REVIEWING' : undefined } : skipToken)
+  const { data: searchResults, isLoading: searchLoading, isError: searchError } = trpc.vocab.search.useQuery(debouncedTerm && debouncedTerm.length >= 1 ? { term: debouncedTerm, level: levelFilter as 'CET4' | 'CET6' | 'COMBINED' | 'CUSTOM' | undefined, skip, take: 50 } : skipToken)
 
   const handleProgressUpdate = useCallback(() => {
     refetchStats()
