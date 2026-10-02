@@ -1,7 +1,7 @@
 'use client'
 
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Suspense, useState, useEffect } from 'react'
+import { Suspense, useState, useEffect, useMemo } from 'react'
 import { trpc } from '@/providers/trpc-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,11 +23,23 @@ function CheckinContent() {
   const [note, setNote] = useState('')
   const [vocabVersionId, setVocabVersionId] = useState('')
   const [loading, setLoading] = useState(false)
-  const [newWordCount, setNewWordCount] = useState(0)
-  const [reviewWordCount, setReviewWordCount] = useState(0)
-  const [masteryLevel, setMasteryLevel] = useState<'easy' | 'normal' | 'hard'>('normal')
+  const [makeupMode, setMakeupMode] = useState(false)
 
+  const utils = trpc.useUtils()
   const { data: vocabVersions, isPending: loadingVocab } = trpc.vocab.listVersions.useQuery({ isActive: true })
+  const { data: studyCounts } = trpc.vocabProgress.getStudyCounts.useQuery(
+    vocabVersionId ? { versionId: vocabVersionId } : skipToken,
+    { enabled: !!vocabVersionId }
+  )
+
+  const autoWordCount = useMemo(() => {
+    const count = Math.max(studyCounts?.totalWordCount || 0, 1)
+    return Math.min(Math.max(count, 1), 2000)
+  }, [studyCounts?.totalWordCount])
+
+  useEffect(() => {
+    setWordCount(autoWordCount)
+  }, [autoWordCount])
 
   const { data: todayCheckin, isPending: loadingToday } = trpc.checkin.getToday.useQuery(
     circleId ? { circleId } : skipToken
@@ -41,13 +53,21 @@ function CheckinContent() {
   }, [vocabVersions, vocabVersionId])
 
   const { mutate: createCheckin, isPending: createLoading } = trpc.checkin.create.useMutation({
-    onSuccess: () => {
-      toast.success('打卡成功！')
-      setWordCount(50)
+    onSuccess: async (data) => {
+      toast.success(data.isMakeup ? '补卡成功！' : '打卡成功！')
       setMinutes(30)
       setNote('')
-      setNewWordCount(0)
-      setReviewWordCount(0)
+      setMakeupMode(false)
+      // 刷新今日页、个人统计、成员状态等依赖数据
+      await Promise.all([
+        utils.feed.list.invalidate(),
+        utils.stats.profile.invalidate(),
+        utils.stats.circle.invalidate(),
+        utils.stats.calendar.invalidate(),
+        utils.checkin.list.invalidate(),
+        utils.checkin.getToday.invalidate(),
+        utils.circle.listMembers.invalidate(),
+      ])
       // 跳转回动态页查看打卡结果
       if (circleId) {
         router.push(`/feed?circle=${circleId}`)
@@ -81,10 +101,35 @@ function CheckinContent() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
-      <h1 className="mb-2 text-2xl font-bold">今日打卡</h1>
+      <h1 className="mb-2 text-2xl font-bold">{makeupMode ? '补打卡' : '今日打卡'}</h1>
       <p className="mb-6 text-sm text-muted-foreground">
-        打卡将在当前圈子内可见，每位成员每天最多打卡 1 次
+        {makeupMode ? '为昨天补打卡，补卡仅限一次机会' : '打卡将在当前圈子内可见，每位成员每天最多打卡 1 次'}
       </p>
+
+      {todayCheckin?.canMakeup && !hasCheckin && (
+        <Card className="mb-4 border-purple-200 bg-purple-50">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-purple-700">
+                <span className="text-xl">🌙</span>
+                <div>
+                  <span className="font-medium">昨天忘记打卡？</span>
+                  <p className="text-xs text-purple-600">可以补昨天一次卡，补卡后连续天数不会中断</p>
+                </div>
+              </div>
+              <label className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={makeupMode}
+                  onChange={(e) => setMakeupMode(e.target.checked)}
+                  className="h-4 w-4 rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+                />
+                <span className="text-sm text-purple-700">{makeupMode ? '正在补昨天' : '补昨天卡'}</span>
+              </label>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {hasCheckin && (
         <Card className="mb-4 border-green-200 bg-green-50">
@@ -157,103 +202,33 @@ function CheckinContent() {
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="wordCount">总单词数</Label>
-                <Input
-                  id="wordCount"
-                  type="number"
-                  min={1}
-                  max={2000}
-                  value={wordCount}
-                  onChange={(e) => {
-                    const val = Number(e.target.value)
-                    setWordCount(val)
-                    // 保持新词+复习词=总数
-                    if (newWordCount + reviewWordCount > 0) {
-                      setReviewWordCount(Math.max(0, val - newWordCount))
-                    }
-                  }}
-                  disabled={loading || createLoading}
-                />
-                <p className="text-xs text-muted-foreground">新学 + 复习的总单词数（1-2000）</p>
+            <div className="grid grid-cols-3 gap-3 rounded-md bg-muted/50 p-3">
+              <div>
+                <p className="text-xs text-muted-foreground">总单词数</p>
+                <p className="text-lg font-bold">{wordCount}</p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="minutes">学习时长（分钟）</Label>
-                <Input
-                  id="minutes"
-                  type="number"
-                  min={1}
-                  max={720}
-                  value={minutes}
-                  onChange={(e) => setMinutes(Number(e.target.value))}
-                  disabled={loading || createLoading}
-                />
-                <p className="text-xs text-muted-foreground">今天背单词花了多少分钟（1-720）</p>
+              <div>
+                <p className="text-xs text-muted-foreground">新学</p>
+                <p className="text-lg font-bold">{studyCounts?.newWordCount ?? 0}</p>
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="newWordCount">新学单词数</Label>
-                <Input
-                  id="newWordCount"
-                  type="number"
-                  min={0}
-                  max={wordCount}
-                  value={newWordCount}
-                  onChange={(e) => {
-                    const val = Math.min(Number(e.target.value), wordCount)
-                    setNewWordCount(val)
-                    setReviewWordCount(wordCount - val)
-                  }}
-                  disabled={loading || createLoading}
-                />
-                <p className="text-xs text-muted-foreground">第一次学习的单词数量</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reviewWordCount">复习单词数</Label>
-                <Input
-                  id="reviewWordCount"
-                  type="number"
-                  min={0}
-                  max={wordCount}
-                  value={reviewWordCount}
-                  onChange={(e) => {
-                    const val = Math.min(Number(e.target.value), wordCount)
-                    setReviewWordCount(val)
-                    setNewWordCount(wordCount - val)
-                  }}
-                  disabled={loading || createLoading}
-                />
-                <p className="text-xs text-muted-foreground">今天复习的已学单词数量</p>
+              <div>
+                <p className="text-xs text-muted-foreground">复习</p>
+                <p className="text-lg font-bold">{studyCounts?.reviewWordCount ?? 0}</p>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>学习掌握程度</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {([
-                  { value: 'easy', label: '轻松', emoji: '😌' },
-                  { value: 'normal', label: '一般', emoji: '😐' },
-                  { value: 'hard', label: '困难', emoji: '😫' },
-                ] as const).map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setMasteryLevel(opt.value)}
-                    disabled={loading || createLoading}
-                    className={`rounded-md border px-3 py-2 text-sm transition-colors ${
-                      masteryLevel === opt.value
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'hover:bg-muted'
-                    }`}
-                  >
-                    <span className="mr-1">{opt.emoji}</span>
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+              <Label htmlFor="minutes">学习时长（分钟）</Label>
+              <Input
+                id="minutes"
+                type="number"
+                min={1}
+                max={720}
+                value={minutes}
+                onChange={(e) => setMinutes(Number(e.target.value))}
+                disabled={loading || createLoading}
+              />
+              <p className="text-xs text-muted-foreground">今天背单词花了多少分钟（1-720）</p>
             </div>
 
             <div className="space-y-2">
@@ -277,6 +252,7 @@ function CheckinContent() {
               <p className="font-medium">📝 打卡规则说明：</p>
               <ul className="mt-1 list-inside list-disc space-y-0.5">
                 <li>每位成员每个圈子每天最多打卡 1 次</li>
+                <li>忘记打卡？可以补昨天一次卡（补卡不影响连续天数）</li>
                 <li>打卡后连续天数 +1，中断后重新计算</li>
                 <li>打卡修改记录在修改历史中，最多可修改 3 次</li>
                 <li>打卡发布到当前圈子，所有圈子成员可见</li>
@@ -293,11 +269,12 @@ function CheckinContent() {
                     wordCount,
                     minutes,
                     note: note || undefined,
+                    date: makeupMode ? todayCheckin?.yesterdayStr : undefined,
                   })
                 }}
                 disabled={createLoading || !vocabVersionId || hasCheckin}
               >
-                {createLoading ? '发布中...' : '发布打卡'}
+                {createLoading ? '发布中...' : makeupMode ? '发布补卡' : '发布打卡'}
               </Button>
               <Button
                 variant="outline"

@@ -26,6 +26,7 @@ const createProcedure = publicProcedure
     wordCount: z.number().min(1).max(2000),
     minutes: z.number().min(1).max(720),
     note: z.string().max(300).optional(),
+    date: z.string().optional(), // 补卡日期，格式 yyyy-MM-dd，只能是今天或昨天
   }))
   .mutation(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
@@ -38,26 +39,47 @@ const createProcedure = publicProcedure
     const todayStr = getLocalDate(new Date(), circle.timezone)
     const today = new Date(todayStr + 'T00:00:00.000Z')
 
-    // Check for existing published checkin today
+    // 解析补卡日期，默认为今天
+    let checkinDate = today
+    if (input.date) {
+      // 验证日期格式
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+      if (!dateRegex.test(input.date)) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: '日期格式无效' })
+      }
+      checkinDate = new Date(input.date + 'T00:00:00.000Z')
+
+      // 验证只能补今天或昨天的卡
+      const yesterdayStr = getLocalDate(new Date(Date.now() - 24 * 60 * 60 * 1000), circle.timezone)
+      if (input.date !== todayStr && input.date !== yesterdayStr) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: '只能补今天或昨天的卡' })
+      }
+    }
+
+    // 计算是今天还是昨天
+    const isMakeup = checkinDate < today
+    const dateLabel = isMakeup ? '昨天' : '今天'
+
+    // Check for existing published checkin on the target date
     const existing = await ctx.prisma.checkin.findFirst({
       where: {
         circleId: input.circleId,
         userId: ctx.user.id,
-        date: today,
+        date: checkinDate,
         status: 'PUBLISHED',
         deletedAt: null,
       },
     })
     if (existing) {
-      throw new TRPCError({ code: 'CONFLICT', message: '今天已经打过卡了' })
+      throw new TRPCError({ code: 'CONFLICT', message: `${dateLabel}已经打过卡了` })
     }
 
-    // Check for existing withdrawn checkin today - update it instead of creating new
+    // Check for existing withdrawn checkin on the target date - update it instead of creating new
     const withdrawn = await ctx.prisma.checkin.findFirst({
       where: {
         circleId: input.circleId,
         userId: ctx.user.id,
-        date: today,
+        date: checkinDate,
         status: 'WITHDRAWN',
         deletedAt: null,
       },
@@ -83,7 +105,7 @@ const createProcedure = publicProcedure
         where: { circleId: input.circleId, userId: ctx.user.id },
       })
 
-      return updated
+      return { ...updated, isMakeup }
     }
 
     try {
@@ -95,7 +117,7 @@ const createProcedure = publicProcedure
           wordCount: input.wordCount,
           minutes: input.minutes,
           note: input.note,
-          date: today,
+          date: checkinDate,
           status: 'PUBLISHED',
         },
         include: {
@@ -116,16 +138,16 @@ const createProcedure = publicProcedure
           actorId: ctx.user.id,
           targetId: null,
           targetTable: 'Checkin',
-          after: { checkinId: checkin.id, wordCount: input.wordCount, minutes: input.minutes },
+          after: { checkinId: checkin.id, wordCount: input.wordCount, minutes: input.minutes, isMakeup },
           ipAddress: ctx.req?.ip,
         },
       })
 
-      return checkin
+      return { ...checkin, isMakeup }
     } catch (e) {
       if (e instanceof TRPCError) throw e
       if (typeof e === 'object' && e !== null && 'code' in e && e.code === 'P2002') {
-        throw new TRPCError({ code: 'CONFLICT', message: '今天已经打过卡了' })
+        throw new TRPCError({ code: 'CONFLICT', message: `${dateLabel}已经打过卡了` })
       }
       throw e
     }
@@ -141,6 +163,8 @@ const getTodayProcedure = publicProcedure
 
     const todayStr = getLocalDate(new Date(), circle.timezone)
     const today = new Date(todayStr + 'T00:00:00.000Z')
+    const yesterdayStr = getLocalDate(new Date(Date.now() - 24 * 60 * 60 * 1000), circle.timezone)
+    const yesterday = new Date(yesterdayStr + 'T00:00:00.000Z')
 
     const checkin = await ctx.prisma.checkin.findFirst({
       where: {
@@ -155,10 +179,24 @@ const getTodayProcedure = publicProcedure
       },
     })
 
+    // Check if yesterday was checked in (for makeup eligibility)
+    const yesterdayCheckin = await ctx.prisma.checkin.findFirst({
+      where: {
+        circleId: input.circleId,
+        userId: ctx.user.id,
+        date: yesterday,
+        status: 'PUBLISHED',
+        deletedAt: null,
+      },
+    })
+
     return {
       hasCheckin: checkin?.status === 'PUBLISHED',
       hasWithdrawn: checkin?.status === 'WITHDRAWN',
       checkin: checkin?.status === 'PUBLISHED' ? checkin : null,
+      canMakeup: !yesterdayCheckin && !checkin?.status === 'PUBLISHED', // 昨天没打卡且今天也没打卡
+      todayStr,
+      yesterdayStr,
     }
   })
 
