@@ -131,10 +131,13 @@ function FeedContent() {
           ))}
         </div>
       ) : feed && feed.length === 0 ? (
-        <div className="flex h-40 flex-col items-center justify-center gap-2">
-          <p className="text-muted-foreground">还没有打卡记录</p>
-          <p className="text-sm text-muted-foreground">成为第一个打卡的人吧！</p>
-          <Button className="mt-2" onClick={() => router.push(`/checkin?circle=${circleId}`)}>
+        <div className="flex h-64 flex-col items-center justify-center gap-4 rounded-xl bg-muted/30 p-8">
+          <div className="text-5xl">📚</div>
+          <div className="text-center">
+            <p className="text-lg font-medium text-foreground">还没有人打卡</p>
+            <p className="text-sm text-muted-foreground">快来成为第一个吧！</p>
+          </div>
+          <Button size="lg" onClick={() => router.push(`/checkin?circle=${circleId}`)}>
             立即打卡
           </Button>
         </div>
