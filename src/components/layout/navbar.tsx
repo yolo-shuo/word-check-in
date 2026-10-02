@@ -50,7 +50,7 @@ export function Navbar() {
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
           <Link href={withCircle('/feed')} className="flex items-center gap-2">
-            <span className="text-lg font-bold text-primary">坚持搭子</span>
+            <span className="text-lg font-bold text-primary">搭子文化</span>
             {isGuest && (
               <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs text-yellow-800">
                 游客模式
@@ -64,9 +64,9 @@ export function Navbar() {
                 key={item.href}
                 href={withCircle(item.href)}
                 className={cn(
-                  'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                  'relative rounded-md px-3 py-2 text-sm font-medium transition-colors',
                   pathname === item.href
-                    ? 'bg-primary text-primary-foreground'
+                    ? 'text-primary border-b-2 border-primary'
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                 )}
               >
