@@ -27,11 +27,33 @@ const registerProcedure = publicProcedure
       },
     })
 
+    // 自动创建个人圈子
+    const personalCircle = await ctx.prisma.circle.create({
+      data: {
+        name: `${input.nickname}的个人空间`,
+        description: '个人学习空间，可随时邀请朋友加入',
+        timezone: 'Asia/Shanghai',
+        circleType: 'PRIVATE',
+        maxMembers: 50,
+        ownerId: user.id,
+      },
+    })
+
+    // 将用户添加为圈子成员
+    await ctx.prisma.circleMember.create({
+      data: {
+        circleId: personalCircle.id,
+        userId: user.id,
+        role: 'OWNER',
+      },
+    })
+
     return {
       id: user.id,
       email: user.email,
       nickname: user.nickname,
       avatarUrl: user.avatarUrl,
+      personalCircleId: personalCircle.id,
     }
   })
 

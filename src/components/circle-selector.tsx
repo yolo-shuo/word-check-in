@@ -122,18 +122,24 @@ export function CircleSelector() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {circles.map((circle) => {
           const role = roleMap[circle.role] || roleMap.MEMBER
+          const isPersonal = circle.name.includes('的个人空间')
           return (
             <button
               key={circle.id}
               onClick={() => router.push(`${pathname}?circle=${circle.id}`)}
               className="flex items-center gap-4 rounded-lg border bg-white p-4 text-left transition-shadow hover:shadow-md"
             >
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${isPersonal ? 'bg-purple-100 text-purple-600' : 'bg-primary/10 text-primary'}`}>
                 <UserCircle size={24} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="truncate font-semibold">{circle.name}</span>
+                  {isPersonal && (
+                    <span className="shrink-0 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                      个人
+                    </span>
+                  )}
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${role.className}`}>
                     {role.label}
                   </span>

@@ -20,9 +20,9 @@ export default function RegisterPage() {
   const [passwordError, setPasswordError] = useState<string | null>(null)
 
   const { mutate: register } = trpc.auth.register.useMutation({
-    onSuccess: () => {
-      toast.success('注册成功，请登录')
-      router.push('/login')
+    onSuccess: (data) => {
+      toast.success('注册成功！已为你创建个人空间')
+      router.push(`/feed?circle=${data.personalCircleId}`)
     },
     onError: (error) => {
       toast.error(error.message)
@@ -45,7 +45,7 @@ export default function RegisterPage() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">创建账户</CardTitle>
-          <CardDescription className="text-center">加入坚持搭子，和朋友一起学习</CardDescription>
+          <CardDescription className="text-center">加入搭子文化，和朋友一起学习</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
