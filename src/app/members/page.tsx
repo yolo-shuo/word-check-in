@@ -19,6 +19,7 @@ function MembersContent() {
   const circleId = searchParams.get('circle')
   const { data: session } = useSession()
   const [searchText, setSearchText] = useState('')
+  const [copiedCode, setCopiedCode] = useState<string | null>(null)
   const { confirm: showConfirm, Dialog: ConfirmDialog } = useConfirm()
 
   const { data: members, isLoading, error: membersError, refetch: refetchMembers } = trpc.circle.listMembers.useQuery(
@@ -155,14 +156,30 @@ function MembersContent() {
               <div className="mt-3 space-y-2">
                 {inviteCodes?.map((code) => (
                   <div key={code.id} className="flex items-center justify-between rounded-md bg-muted p-3">
-                    <div>
+                    <div className="flex items-center gap-2">
                       <span className="font-mono font-bold">{code.code}</span>
-                      <span className="ml-2 text-xs text-muted-foreground">已用 {code.usedCount}{code.maxUses ? '/' + code.maxUses : ''} 次</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(code.code)
+                          setCopiedCode(code.code)
+                          setTimeout(() => setCopiedCode(null), 2000)
+                        }}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        title="复制邀请码"
+                      >
+                        {copiedCode === code.code ? '✓ 已复制' : '📋'}
+                      </button>
+                      <span className="text-xs text-muted-foreground">已用 {code.usedCount}{code.maxUses ? '/' + code.maxUses : ''} 次</span>
                     </div>
                     {code.revokedAt ? <span className="text-xs text-red-500">已撤销</span> : <span className="text-xs text-green-500">有效</span>}
                   </div>
                 ))}
               </div>
+              {inviteCodes && inviteCodes.length > 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  累计邀请 {inviteCodes.reduce((sum, c) => sum + c.usedCount, 0)} 人加入圈子
+                </p>
+              )}
             </CardContent>
           </Card>
         )}
