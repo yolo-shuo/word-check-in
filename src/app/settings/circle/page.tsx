@@ -1,7 +1,7 @@
 'use client'
 
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Suspense, useState } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { trpc } from '@/providers/trpc-provider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -25,11 +25,20 @@ function CircleSettingsContent() {
   const [editDesc, setEditDesc] = useState('')
   const [showEdit, setShowEdit] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [reminderTime, setReminderTime] = useState('21:00')
+  const [savingReminder, setSavingReminder] = useState(false)
 
   const { data: circle, isPending: loadingCircle, error: circleError } = trpc.circle.get.useQuery(
     circleId ? { circleId } : skipToken,
     { enabled: !!circleId }
   )
+
+  // 初始化提醒时间
+  useEffect(() => {
+    if (circle?.reminderTime) {
+      setReminderTime(circle.reminderTime)
+    }
+  }, [circle?.reminderTime])
 
   // 讨论区设置
   const { data: discussionSettings } = trpc.discussion.getSettings.useQuery(
@@ -46,6 +55,14 @@ function CircleSettingsContent() {
     onSuccess: () => {
       toast.success('圈子信息已更新')
       setShowEdit(false)
+    },
+    onError: (error) => toast.error(error.message),
+  })
+
+  const { mutate: updateReminderTime, isPending: updatingReminder } = trpc.circle.update.useMutation({
+    onSuccess: () => {
+      toast.success('提醒时间已更新')
+      utils.circle.get.invalidate()
     },
     onError: (error) => toast.error(error.message),
   })
@@ -247,6 +264,37 @@ function CircleSettingsContent() {
                 >
                   {discussionSettings.sensitiveWordFilter ? '已开启' : '已关闭'}
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 打卡提醒 */}
+        {isOwner && (
+          <Card className="mb-6">
+            <CardHeader><CardTitle className="text-lg">打卡提醒</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reminderTime">每日提醒时间</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="reminderTime"
+                    type="time"
+                    value={reminderTime}
+                    onChange={(e) => setReminderTime(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={() => {
+                      if (!circleId) return
+                      updateReminderTime({ circleId, reminderTime })
+                    }}
+                    disabled={updatingReminder}
+                  >
+                    {updatingReminder ? '保存中...' : '保存'}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">到了该时间，如果还有搭子没打卡，可以在动态页提醒他们</p>
               </div>
             </CardContent>
           </Card>

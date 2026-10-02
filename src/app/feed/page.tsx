@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Flame, Plus, Users, BookOpen, Loader2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { skipToken } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
 
 function FeedContent() {
   const searchParams = useSearchParams()
@@ -27,6 +28,20 @@ function FeedContent() {
     circleId ? { circleId } : skipToken,
     { enabled: !!circleId, staleTime: 30000 }
   )
+
+  const { data: reminderStatus } = trpc.circle.getReminderStatus.useQuery(
+    circleId ? { circleId } : skipToken,
+    { enabled: !!circleId, staleTime: 30000 }
+  )
+
+  const { mutate: sendReminder, isPending: sendingReminder } = trpc.circle.sendReminder.useMutation({
+    onSuccess: () => {
+      toast.success('已提醒所有未打卡的搭子')
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
 
   const { data: stats } = trpc.stats.profile.useQuery(
     circleId ? { circleId } : skipToken,
@@ -112,6 +127,41 @@ function FeedContent() {
           </div>
         </CardContent>
       </Card>
+
+      {/* 打卡提醒横幅 */}
+      {reminderStatus?.isPastReminderTime && reminderStatus?.uncheckedCount > 0 && (
+        <Card className="mb-6 border-orange-200 bg-orange-50">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">⏰</span>
+                <div>
+                  <p className="font-medium text-orange-800">
+                    还有 {reminderStatus.uncheckedCount} 位搭子今天没打卡
+                  </p>
+                  <p className="text-xs text-orange-600">
+                    提醒时间：{reminderStatus.reminderTime}
+                  </p>
+                </div>
+              </div>
+              {reminderStatus.hasReminded ? (
+                <Button variant="outline" size="sm" disabled>
+                  已提醒
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={() => sendReminder({ circleId })}
+                  disabled={sendingReminder}
+                  className="bg-orange-600 hover:bg-orange-700"
+                >
+                  {sendingReminder ? '提醒中...' : '提醒搭子'}
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 动态列表 */}
       <div className="flex items-center justify-between mb-4">

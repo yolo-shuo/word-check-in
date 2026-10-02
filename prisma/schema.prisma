@@ -56,6 +56,7 @@ enum NotificationType {
   REMOVED
   PASSWORD_RESET
   ADMIN_ACTION
+  CHECKIN_REMINDER
 }
 
 // ===== User =====
@@ -106,6 +107,7 @@ model Circle {
   maxMembers     Int        @default(50)
   allowMemberInvite Boolean @default(true)
   allowLeaderboard  Boolean @default(true)
+  reminderTime   String     @default("21:00")
   ownerId        String
   owner          User       @relation("CircleOwner", fields: [ownerId], references: [id])
   createdAt      DateTime   @default(now())
@@ -119,6 +121,7 @@ model Circle {
   messages               Message[]
   discussionSettings     CircleDiscussionSettings?
   messageReads           MessageRead[]
+  reminders              Reminder[]
 
   @@index([ownerId])
 }
@@ -499,4 +502,20 @@ model CircleDiscussionSettings {
   circle Circle @relation(fields: [circleId], references: [id])
 
   @@index([circleId])
+}
+
+// ===== Reminder =====
+
+model Reminder {
+  id        String   @id @default(cuid())
+  circleId  String
+  userId    String
+  date      DateTime @db.Date
+  sentAt    DateTime @default(now())
+
+  circle Circle @relation(fields: [circleId], references: [id])
+
+  @@unique([circleId, userId, date])
+  @@index([circleId, date])
+  @@index([userId, date])
 }

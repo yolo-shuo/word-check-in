@@ -2,6 +2,13 @@ import { z } from 'zod'
 import { TRPCError } from '@trpc/server'
 import { router, publicProcedure } from '../trpc'
 import { prisma } from '../prisma'
+import { format } from 'date-fns'
+import { toZonedTime } from 'date-fns-tz'
+
+function getLocalDate(date: Date, timezone: string): string {
+  const zonedDate = toZonedTime(date, timezone)
+  return format(zonedDate, 'yyyy-MM-dd')
+}
 
 const createProcedure = publicProcedure
   .input(z.object({
@@ -57,6 +64,7 @@ const updateProcedure = publicProcedure
     maxMembers: z.number().min(2).max(500).optional(),
     allowMemberInvite: z.boolean().optional(),
     allowLeaderboard: z.boolean().optional(),
+    reminderTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   }))
   .mutation(async ({ input, ctx }) => {
     if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
@@ -69,7 +77,7 @@ const updateProcedure = publicProcedure
       data,
     })
 
-    return { id: updated.id, name: updated.name }
+    return { id: updated.id, name: updated.name, reminderTime: updated.reminderTime }
   })
 
 const joinProcedure = publicProcedure
@@ -540,6 +548,127 @@ const leaveProcedure = publicProcedure
     return { left: true }
   })
 
+// 获取打卡提醒状态
+const getReminderStatusProcedure = publicProcedure
+  .input(z.object({ circleId: z.string() }))
+  .query(async ({ input, ctx }) => {
+    if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
+
+    const member = await ctx.prisma.circleMember.findFirst({
+      where: { circleId: input.circleId, userId: ctx.user.id, leftAt: null },
+    })
+    if (!member) throw new TRPCError({ code: 'FORBIDDEN', message: '没有权限' })
+
+    const circle = await ctx.prisma.circle.findUnique({ where: { id: input.circleId } })
+    if (!circle) throw new TRPCError({ code: 'NOT_FOUND', message: '圈子不存在' })
+
+    const todayStr = getLocalDate(new Date(), circle.timezone)
+    const today = new Date(todayStr + 'T00:00:00.000Z')
+
+    // 获取所有成员
+    const members = await ctx.prisma.circleMember.findMany({
+      where: { circleId: input.circleId, leftAt: null },
+      include: { user: { select: { id: true, nickname: true } } },
+    })
+
+    // 获取今天已打卡的成员
+    const checkins = await ctx.prisma.checkin.findMany({
+      where: { circleId: input.circleId, date: today, status: 'PUBLISHED', deletedAt: null },
+      select: { userId: true },
+    })
+    const checkedUserIds = checkins.map(c => c.userId)
+
+    // 未打卡的成员
+    const uncheckedMembers = members.filter(m => !checkedUserIds.includes(m.userId))
+
+    // 今天是否已发送提醒
+    const reminder = await ctx.prisma.reminder.findFirst({
+      where: { circleId: input.circleId, userId: ctx.user.id, date: today },
+    })
+
+    // 当前时间是否已过提醒时间
+    const now = new Date()
+    const nowTime = format(now, 'HH:mm')
+    const reminderTime = circle.reminderTime
+    const isPastReminderTime = nowTime >= reminderTime
+
+    return {
+      reminderTime,
+      isPastReminderTime,
+      uncheckedCount: uncheckedMembers.length,
+      uncheckedMembers: uncheckedMembers.map(m => m.user),
+      hasReminded: !!reminder,
+    }
+  })
+
+// 发送打卡提醒
+const sendReminderProcedure = publicProcedure
+  .input(z.object({ circleId: z.string() }))
+  .mutation(async ({ input, ctx }) => {
+    if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
+
+    const member = await ctx.prisma.circleMember.findFirst({
+      where: { circleId: input.circleId, userId: ctx.user.id, leftAt: null },
+    })
+    if (!member) throw new TRPCError({ code: 'FORBIDDEN', message: '没有权限' })
+
+    const circle = await ctx.prisma.circle.findUnique({ where: { id: input.circleId } })
+    if (!circle) throw new TRPCError({ code: 'NOT_FOUND', message: '圈子不存在' })
+
+    const todayStr = getLocalDate(new Date(), circle.timezone)
+    const today = new Date(todayStr + 'T00:00:00.000Z')
+
+    // 检查今天是否已发送过提醒
+    const existingReminder = await ctx.prisma.reminder.findFirst({
+      where: { circleId: input.circleId, userId: ctx.user.id, date: today },
+    })
+    if (existingReminder) {
+      throw new TRPCError({ code: 'CONFLICT', message: '今天已经提醒过了' })
+    }
+
+    // 获取所有成员
+    const members = await ctx.prisma.circleMember.findMany({
+      where: { circleId: input.circleId, leftAt: null },
+    })
+
+    // 获取今天已打卡的成员
+    const checkins = await ctx.prisma.checkin.findMany({
+      where: { circleId: input.circleId, date: today, status: 'PUBLISHED', deletedAt: null },
+      select: { userId: true },
+    })
+    const checkedUserIds = checkins.map(c => c.userId)
+
+    // 未打卡的成员
+    const uncheckedMembers = members.filter(m => !checkedUserIds.includes(m.userId))
+
+    if (uncheckedMembers.length === 0) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: '所有搭子都已打卡' })
+    }
+
+    // 创建提醒记录
+    await ctx.prisma.reminder.create({
+      data: {
+        circleId: input.circleId,
+        userId: ctx.user.id,
+        date: today,
+      },
+    })
+
+    // 给每个未打卡成员发送通知
+    for (const uncheckedMember of uncheckedMembers) {
+      await ctx.prisma.notification.create({
+        data: {
+          userId: uncheckedMember.userId,
+          type: 'CHECKIN_REMINDER',
+          title: '打卡提醒',
+          body: `${ctx.user.nickname} 提醒你今天还没有打卡，快去打卡吧！`,
+        },
+      })
+    }
+
+    return { remindedCount: uncheckedMembers.length }
+  })
+
 export const circleRouter = router({
   create : createProcedure,
   update : updateProcedure,
@@ -555,5 +684,7 @@ export const circleRouter = router({
   muteMember : muteMemberProcedure,
   transferOwner : transferOwnerProcedure,
   dissolve : dissolveProcedure,
-  leave : leaveProcedure
+  leave : leaveProcedure,
+  getReminderStatus : getReminderStatusProcedure,
+  sendReminder : sendReminderProcedure,
 })
